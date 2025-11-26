@@ -109,7 +109,11 @@ void update_ui(void) {
     fb_clear(COLOR_BLACK);
 
     // Draw the car bitmap at current position
+<<<<<<< HEAD
     fb_draw_bitmap(car_x, car_y, &car_100x100_bitmap);
+=======
+    fb_draw_bitmap(car_x, car_y, &car_50x50_bitmap);
+>>>>>>> 31ddba327cf4f2c0b35b555ad3ff5073790eec9a
 
     // Send frame buffer to LCD
     fb_flush();
