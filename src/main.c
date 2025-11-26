@@ -8,6 +8,7 @@
 #include "input/joystick.h"
 #include "../assets/images.h"
 #include "../assets/car.h"
+#include "../assets/handle.h"
 
 // Global flag for graceful shutdown
 static volatile int g_running = 1;
@@ -15,6 +16,12 @@ static volatile int g_running = 1;
 // Car bitmap size constants
 #define CAR_WIDTH  100
 #define CAR_HEIGHT 100
+
+// Handle bitmap size and position constants
+#define HANDLE_WIDTH  80
+#define HANDLE_HEIGHT 80
+#define HANDLE_X      0                               // Left side
+#define HANDLE_Y      (ST7789_HEIGHT - HANDLE_HEIGHT) // Bottom (240-80=160)
 
 // Car position and properties
 static int16_t car_x = (ST7789_WIDTH - CAR_WIDTH) / 2;   // Start at center (70)
@@ -69,6 +76,9 @@ void draw_ui(void) {
     // Draw the car bitmap at current position
     fb_draw_bitmap(car_x, car_y, &car_100x100_bitmap);
 
+    // Draw the handle bitmap at bottom-left corner
+    fb_draw_bitmap(HANDLE_X, HANDLE_Y, &handle_80x80_bitmap);
+
     // Send frame buffer to LCD
     fb_flush();
 }
@@ -110,6 +120,9 @@ void update_ui(void) {
 
     // Draw the car bitmap at current position
     fb_draw_bitmap(car_x, car_y, &car_100x100_bitmap);
+
+    // Draw the handle bitmap at bottom-left corner
+    fb_draw_bitmap(HANDLE_X, HANDLE_Y, &handle_80x80_bitmap);
 
     // Send frame buffer to LCD
     fb_flush();
