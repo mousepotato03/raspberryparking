@@ -7,15 +7,19 @@
 #include "input/button.h"
 #include "input/joystick.h"
 #include "../assets/images.h"
+#include "../assets/car.h"
 
 // Global flag for graceful shutdown
 static volatile int g_running = 1;
 
-// Circle position and properties
-static int16_t circle_x = ST7789_WIDTH / 2;   // Start at center (120)
-static int16_t circle_y = ST7789_HEIGHT / 2;  // Start at center (120)
-static const int16_t circle_radius = 20;      // Circle radius
-static const int16_t move_speed = 3;          // Pixels to move per input
+// Car bitmap size constants
+#define CAR_WIDTH  50
+#define CAR_HEIGHT 50
+
+// Car position and properties
+static int16_t car_x = (ST7789_WIDTH - CAR_WIDTH) / 2;   // Start at center (95)
+static int16_t car_y = (ST7789_HEIGHT - CAR_HEIGHT) / 2; // Start at center (95)
+static const int16_t move_speed = 3;                      // Pixels to move per input
 
 void signal_handler(int sig) {
     (void)sig;
@@ -62,8 +66,8 @@ void draw_ui(void) {
     // Clear frame buffer
     fb_clear(COLOR_BLACK);
 
-    // Draw the circle at center position
-    fb_fill_circle(circle_x, circle_y, circle_radius, COLOR_CYAN);
+    // Draw the car bitmap at current position
+    fb_draw_bitmap(car_x, car_y, &car_50x50_bitmap);
 
     // Send frame buffer to LCD
     fb_flush();
@@ -73,50 +77,47 @@ void update_ui(void) {
     // Read joystick input
     joystick_state_t joy = joystick_read_state();
 
-    // Update circle position based on joystick input
+    // Update car position based on joystick input
     if (joy.up) {
-        circle_y -= move_speed;
+        car_y -= move_speed;
     }
     if (joy.down) {
-        circle_y += move_speed;
+        car_y += move_speed;
     }
     if (joy.left) {
-        circle_x -= move_speed;
+        car_x -= move_speed;
     }
     if (joy.right) {
-        circle_x += move_speed;
+        car_x += move_speed;
     }
 
-    // Keep circle within screen boundaries
-    if (circle_x - circle_radius < 0) {
-        circle_x = circle_radius;
+    // Keep car within screen boundaries
+    if (car_x < 0) {
+        car_x = 0;
     }
-    if (circle_x + circle_radius >= ST7789_WIDTH) {
-        circle_x = ST7789_WIDTH - circle_radius - 1;
+    if (car_x + CAR_WIDTH > ST7789_WIDTH) {
+        car_x = ST7789_WIDTH - CAR_WIDTH;
     }
-    if (circle_y - circle_radius < 0) {
-        circle_y = circle_radius;
+    if (car_y < 0) {
+        car_y = 0;
     }
-    if (circle_y + circle_radius >= ST7789_HEIGHT) {
-        circle_y = ST7789_HEIGHT - circle_radius - 1;
+    if (car_y + CAR_HEIGHT > ST7789_HEIGHT) {
+        car_y = ST7789_HEIGHT - CAR_HEIGHT;
     }
 
     // Clear frame buffer
     fb_clear(COLOR_BLACK);
 
-    // Draw cannon at bottom left (with 10px margin)
-    fb_draw_bitmap(10, ST7789_HEIGHT - cannon_bitmap.height - 10, &cannon_bitmap);
-
-    // Draw the circle at current position
-    fb_fill_circle(circle_x, circle_y, circle_radius, COLOR_CYAN);
+    // Draw the car bitmap at current position
+    fb_draw_bitmap(car_x, car_y, &car_50x50_bitmap);
 
     // Send frame buffer to LCD
     fb_flush();
 }
 
 void run_interactive_demo(void) {
-    printf("\n=== Joystick-Controlled Circle Demo ===\n");
-    printf("Use joystick to move the circle\n");
+    printf("\n=== Joystick-Controlled Car Demo ===\n");
+    printf("Use joystick to move the car\n");
     printf("Press Ctrl+C to exit\n\n");
 
     // Draw initial UI
@@ -130,7 +131,7 @@ void run_interactive_demo(void) {
 
         // Print position every 100 frames (~1 second)
         if (frame_count % 100 == 0) {
-            printf("Circle position: (%d, %d)\n", circle_x, circle_y);
+            printf("Car position: (%d, %d)\n", car_x, car_y);
         }
 
         frame_count++;

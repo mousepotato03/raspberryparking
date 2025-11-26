@@ -19,7 +19,8 @@ SOURCES = $(SRC_DIR)/main.c \
           $(DRIVER_DIR)/lcd/framebuffer.c \
           $(DRIVER_DIR)/input/button.c \
           $(DRIVER_DIR)/input/joystick.c \
-          $(ASSETS_DIR)/images.c
+          $(ASSETS_DIR)/images.c \
+          $(ASSETS_DIR)/car.c
 
 # Object files
 OBJECTS = $(SOURCES:%.c=$(BUILD_DIR)/%.o)
