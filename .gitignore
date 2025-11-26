@@ -1,0 +1,74 @@
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+main
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Kernel Module Compile Results
+*.mod*
+*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+Mkfile.old
+dkms.conf
+
+# Build directories
+build/
+dist/
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# bcm2835 library build files
+lib/bcm2835-1.75/Makefile
+lib/bcm2835-1.75/config.h
+lib/bcm2835-1.75/config.log
+lib/bcm2835-1.75/config.status
+lib/bcm2835-1.75/stamp-h1
+lib/bcm2835-1.75/libtool
+lib/bcm2835-1.75/.libs/
+lib/bcm2835-1.75/.deps/
+lib/bcm2835-1.75/src/.libs/
+lib/bcm2835-1.75/src/.deps/
+lib/bcm2835-1.75/doc/.deps/
