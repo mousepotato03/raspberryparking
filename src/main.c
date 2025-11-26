@@ -67,7 +67,7 @@ void draw_ui(void) {
     fb_clear(COLOR_BLACK);
 
     // Draw the car bitmap at current position
-    fb_draw_bitmap(car_x, car_y, &car_50x50_bitmap);
+    fb_draw_bitmap(car_x, car_y, car_50x50_bitmap);
 
     // Send frame buffer to LCD
     fb_flush();
@@ -109,7 +109,7 @@ void update_ui(void) {
     fb_clear(COLOR_BLACK);
 
     // Draw the car bitmap at current position
-    fb_draw_bitmap(car_x, car_y, &car_50x50_bitmap);
+    fb_draw_bitmap(car_x, car_y, car_50x50_bitmap);
 
     // Send frame buffer to LCD
     fb_flush();
