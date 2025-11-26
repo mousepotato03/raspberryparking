@@ -3,4 +3,4 @@
 
 #include "images.h"
 
-extern const bitmap car_50x50_bitmap;
+extern const bitmap car_100x100_bitmap;

@@ -13,12 +13,12 @@
 static volatile int g_running = 1;
 
 // Car bitmap size constants
-#define CAR_WIDTH  50
-#define CAR_HEIGHT 50
+#define CAR_WIDTH  100
+#define CAR_HEIGHT 100
 
 // Car position and properties
-static int16_t car_x = (ST7789_WIDTH - CAR_WIDTH) / 2;   // Start at center (95)
-static int16_t car_y = (ST7789_HEIGHT - CAR_HEIGHT) / 2; // Start at center (95)
+static int16_t car_x = (ST7789_WIDTH - CAR_WIDTH) / 2;   // Start at center (70)
+static int16_t car_y = (ST7789_HEIGHT - CAR_HEIGHT) / 2; // Start at center (70)
 static const int16_t move_speed = 3;                      // Pixels to move per input
 
 void signal_handler(int sig) {
@@ -67,7 +67,7 @@ void draw_ui(void) {
     fb_clear(COLOR_BLACK);
 
     // Draw the car bitmap at current position
-    fb_draw_bitmap(car_x, car_y, car_50x50_bitmap);
+    fb_draw_bitmap(car_x, car_y, &car_100x100_bitmap);
 
     // Send frame buffer to LCD
     fb_flush();
@@ -109,7 +109,7 @@ void update_ui(void) {
     fb_clear(COLOR_BLACK);
 
     // Draw the car bitmap at current position
-    fb_draw_bitmap(car_x, car_y, car_50x50_bitmap);
+    fb_draw_bitmap(car_x, car_y, &car_100x100_bitmap);
 
     // Send frame buffer to LCD
     fb_flush();
