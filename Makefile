@@ -21,7 +21,8 @@ SOURCES = $(SRC_DIR)/main.c \
           $(DRIVER_DIR)/input/joystick.c \
           $(ASSETS_DIR)/images.c \
           $(ASSETS_DIR)/car.c \
-          $(ASSETS_DIR)/handle.c
+          $(ASSETS_DIR)/handle.c \
+          $(ASSETS_DIR)/easy_map.c
 
 # Object files
 OBJECTS = $(SOURCES:%.c=$(BUILD_DIR)/%.o)

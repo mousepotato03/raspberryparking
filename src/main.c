@@ -9,6 +9,7 @@
 #include "../assets/images.h"
 #include "../assets/car.h"
 #include "../assets/handle.h"
+#include "../assets/easy_map.h"
 
 // Global flag for graceful shutdown
 static volatile int g_running = 1;
@@ -23,9 +24,9 @@ static volatile int g_running = 1;
 #define HANDLE_X      0                               // Left side
 #define HANDLE_Y      (ST7789_HEIGHT - HANDLE_HEIGHT) // Bottom (240-80=160)
 
-// Car position and properties
-static int16_t car_x = (ST7789_WIDTH - CAR_WIDTH) / 2;   // Start at center (70)
-static int16_t car_y = (ST7789_HEIGHT - CAR_HEIGHT) / 2; // Start at center (70)
+// Car position and properties (start at blue box position - bottom right)
+static int16_t car_x = ST7789_WIDTH - CAR_WIDTH - 10;    // Start at right side (130)
+static int16_t car_y = ST7789_HEIGHT - CAR_HEIGHT - 10;  // Start at bottom (130)
 static const int16_t move_speed = 3;                      // Pixels to move per input
 
 void signal_handler(int sig) {
@@ -70,13 +71,13 @@ void test_display(void) {
 }
 
 void draw_ui(void) {
-    // Clear frame buffer
-    fb_clear(COLOR_BLACK);
+    // Draw background map (covers entire screen, no need for fb_clear)
+    fb_draw_bitmap(0, 0, &easy_map_240x240_bitmap);
 
     // Draw the car bitmap at current position
     fb_draw_bitmap(car_x, car_y, &car_100x100_bitmap);
 
-    // Draw the handle bitmap at bottom-left corner
+    // Draw the handle bitmap at bottom-left corner (on top)
     fb_draw_bitmap(HANDLE_X, HANDLE_Y, &handle_80x80_bitmap);
 
     // Send frame buffer to LCD
@@ -115,13 +116,13 @@ void update_ui(void) {
         car_y = ST7789_HEIGHT - CAR_HEIGHT;
     }
 
-    // Clear frame buffer
-    fb_clear(COLOR_BLACK);
+    // Draw background map (covers entire screen, no need for fb_clear)
+    fb_draw_bitmap(0, 0, &easy_map_240x240_bitmap);
 
     // Draw the car bitmap at current position
     fb_draw_bitmap(car_x, car_y, &car_100x100_bitmap);
 
-    // Draw the handle bitmap at bottom-left corner
+    // Draw the handle bitmap at bottom-left corner (on top)
     fb_draw_bitmap(HANDLE_X, HANDLE_Y, &handle_80x80_bitmap);
 
     // Send frame buffer to LCD
