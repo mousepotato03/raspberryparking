@@ -5,6 +5,7 @@
 
 #include "framebuffer.h"
 #include <string.h>
+#include "../game/sin_table.h"
 
 // Frame buffer: 240x240 pixels, RGB565 format
 // Size: 240 * 240 * 2 bytes = 115,200 bytes (~112.5 KB)
@@ -159,4 +160,95 @@ void fb_flush(void) {
 
 uint16_t* fb_get_buffer(void) {
     return (uint16_t*)framebuffer;
+}
+
+void fb_draw_bitmap_rotated(int16_t cx, int16_t cy, const bitmap* bmp,
+                            int16_t angle, uint16_t transparent_color) {
+    if (bmp == NULL || bmp->bitmap == NULL) {
+        return;
+    }
+
+    // 각도 정규화 (0-359)
+    angle = normalize_angle(angle);
+
+    // 특수 각도 최적화: 0도일 때 일반 draw 사용
+    if (angle == 0) {
+        // 중심 좌표를 좌상단 좌표로 변환
+        int16_t x = cx - bmp->width / 2;
+        int16_t y = cy - bmp->height / 2;
+
+        // 투명 색상 처리 포함 그리기
+        for (uint16_t by = 0; by < bmp->height; by++) {
+            for (uint16_t bx = 0; bx < bmp->width; bx++) {
+                int16_t screen_x = x + bx;
+                int16_t screen_y = y + by;
+
+                if (screen_x < 0 || screen_x >= ST7789_WIDTH ||
+                    screen_y < 0 || screen_y >= ST7789_HEIGHT) {
+                    continue;
+                }
+
+                uint16_t color = bmp->bitmap[by * bmp->width + bx];
+                if (color != transparent_color) {
+                    framebuffer[screen_y][screen_x] = color;
+                }
+            }
+        }
+        return;
+    }
+
+    // 비트맵 중심점
+    int16_t bmp_cx = bmp->width / 2;
+    int16_t bmp_cy = bmp->height / 2;
+
+    // sin/cos 값 가져오기 (고정소수점 스케일 1024)
+    int16_t sin_a = get_sin(angle);
+    int16_t cos_a = get_cos(angle);
+
+    // 회전된 비트맵의 바운딩 박스 크기 계산
+    // 최대 대각선 길이를 사용
+    int16_t max_dim = (bmp->width > bmp->height) ? bmp->width : bmp->height;
+    int16_t half_diag = (max_dim * 3) / 4 + 1;  // 약간의 여유
+
+    // 목적지 픽셀 순회 (역변환 방식)
+    for (int16_t dy = -half_diag; dy <= half_diag; dy++) {
+        for (int16_t dx = -half_diag; dx <= half_diag; dx++) {
+            // 화면 좌표
+            int16_t screen_x = cx + dx;
+            int16_t screen_y = cy + dy;
+
+            // 화면 범위 체크
+            if (screen_x < 0 || screen_x >= ST7789_WIDTH ||
+                screen_y < 0 || screen_y >= ST7789_HEIGHT) {
+                continue;
+            }
+
+            // 역회전 변환: 화면 좌표 -> 원본 비트맵 좌표
+            // 공식: src = R^(-1) * dst
+            // R^(-1)은 -angle 회전이므로 sin(-a) = -sin(a), cos(-a) = cos(a)
+            int32_t src_x_fp = (int32_t)dx * cos_a + (int32_t)dy * sin_a;
+            int32_t src_y_fp = -(int32_t)dx * sin_a + (int32_t)dy * cos_a;
+
+            // 고정소수점 -> 정수 변환 + 비트맵 중심 오프셋
+            int16_t src_x = (src_x_fp >> FP_SHIFT) + bmp_cx;
+            int16_t src_y = (src_y_fp >> FP_SHIFT) + bmp_cy;
+
+            // 원본 비트맵 범위 체크
+            if (src_x < 0 || src_x >= bmp->width ||
+                src_y < 0 || src_y >= bmp->height) {
+                continue;
+            }
+
+            // 픽셀 색상 가져오기
+            uint16_t color = bmp->bitmap[src_y * bmp->width + src_x];
+
+            // 투명 색상이면 스킵
+            if (color == transparent_color) {
+                continue;
+            }
+
+            // 프레임버퍼에 그리기
+            framebuffer[screen_y][screen_x] = color;
+        }
+    }
 }

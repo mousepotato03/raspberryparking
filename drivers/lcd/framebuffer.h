@@ -97,4 +97,20 @@ void fb_flush(void);
  */
 uint16_t* fb_get_buffer(void);
 
+/**
+ * @brief Draw a rotated bitmap to the frame buffer
+ *
+ * Draws a bitmap rotated by the specified angle around its center.
+ * Uses lookup table-based sin/cos for performance.
+ * Transparent pixels (matching transparent_color) are skipped.
+ *
+ * @param cx X coordinate of bitmap center on screen
+ * @param cy Y coordinate of bitmap center on screen
+ * @param bmp Pointer to bitmap structure
+ * @param angle Rotation angle in degrees (0-359, clockwise)
+ * @param transparent_color Color to treat as transparent (typically 0x0000)
+ */
+void fb_draw_bitmap_rotated(int16_t cx, int16_t cy, const bitmap* bmp,
+                            int16_t angle, uint16_t transparent_color);
+
 #endif // FRAMEBUFFER_H

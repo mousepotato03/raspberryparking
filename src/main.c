@@ -6,6 +6,7 @@
 #include "lcd/framebuffer.h"
 #include "input/button.h"
 #include "input/joystick.h"
+#include "game/car_physics.h"
 #include "../assets/images.h"
 #include "../assets/car.h"
 #include "../assets/handle.h"
@@ -21,13 +22,19 @@ static volatile int g_running = 1;
 // Handle bitmap size and position constants
 #define HANDLE_WIDTH  80
 #define HANDLE_HEIGHT 80
-#define HANDLE_X      0                               // Left side
-#define HANDLE_Y      (ST7789_HEIGHT - HANDLE_HEIGHT) // Bottom (240-80=160)
+#define HANDLE_X      (HANDLE_WIDTH / 2)              // Handle center X (left side)
+#define HANDLE_Y      (ST7789_HEIGHT - HANDLE_HEIGHT / 2)  // Handle center Y (bottom)
 
-// Car position and properties (start at blue box position - bottom right)
-static int16_t car_x = ST7789_WIDTH - CAR_WIDTH - 10;    // Start at right side (130)
-static int16_t car_y = ST7789_HEIGHT - CAR_HEIGHT - 10;  // Start at bottom (130)
-static const int16_t move_speed = 3;                      // Pixels to move per input
+// Transparent color for bitmaps
+#define TRANSPARENT_COLOR 0x0000
+
+// Car state (physics-based)
+static car_state_t g_car;
+
+// Handle angle for UI (-45 ~ +45 degrees)
+static int16_t g_handle_angle = 0;
+#define HANDLE_ANGLE_MAX 45
+#define HANDLE_ANGLE_RETURN_SPEED 5
 
 void signal_handler(int sig) {
     (void)sig;
@@ -70,82 +77,112 @@ void test_display(void) {
     printf("Display test complete\n");
 }
 
-void draw_ui(void) {
-    // Draw background map (covers entire screen, no need for fb_clear)
+void draw_game(void) {
+    // Draw background map (covers entire screen)
     fb_draw_bitmap(0, 0, &easy_map_240x240_bitmap);
 
-    // Draw the car bitmap at current position
-    fb_draw_bitmap(car_x, car_y, &car_100x100_bitmap);
+    // Get car screen position (center-based)
+    int16_t car_cx = car_get_screen_x(&g_car);
+    int16_t car_cy = car_get_screen_y(&g_car);
 
-    // Draw the handle bitmap at bottom-left corner (on top)
-    fb_draw_bitmap(HANDLE_X, HANDLE_Y, &handle_80x80_bitmap);
+    // Draw the car bitmap rotated at current position and angle
+    fb_draw_bitmap_rotated(car_cx, car_cy, &car_100x100_bitmap,
+                           g_car.angle, TRANSPARENT_COLOR);
+
+    // Draw the handle bitmap rotated at bottom-left corner
+    fb_draw_bitmap_rotated(HANDLE_X, HANDLE_Y, &handle_80x80_bitmap,
+                           g_handle_angle, TRANSPARENT_COLOR);
 
     // Send frame buffer to LCD
     fb_flush();
 }
 
-void update_ui(void) {
+void process_input(void) {
     // Read joystick input
     joystick_state_t joy = joystick_read_state();
 
-    // Update car position based on joystick input
-    if (joy.up) {
-        car_y -= move_speed;
+    // === Acceleration / Deceleration ===
+    // Button A: Forward acceleration
+    if (button_read_raw(BTN_A) == BUTTON_PRESSED) {
+        car_apply_acceleration(&g_car, &default_car_params, true);
     }
+    // Button B: Reverse acceleration
+    else if (button_read_raw(BTN_B) == BUTTON_PRESSED) {
+        car_apply_acceleration(&g_car, &default_car_params, false);
+    }
+
+    // Joystick down: Brake
     if (joy.down) {
-        car_y += move_speed;
+        car_apply_brake(&g_car, &default_car_params);
     }
+
+    // === Steering ===
+    // Joystick left: Turn left
     if (joy.left) {
-        car_x -= move_speed;
+        car_apply_turn(&g_car, &default_car_params, -1);
+        g_handle_angle = -HANDLE_ANGLE_MAX;
     }
-    if (joy.right) {
-        car_x += move_speed;
+    // Joystick right: Turn right
+    else if (joy.right) {
+        car_apply_turn(&g_car, &default_car_params, +1);
+        g_handle_angle = HANDLE_ANGLE_MAX;
     }
+    else {
+        // Return handle to center gradually
+        if (g_handle_angle > 0) {
+            g_handle_angle -= HANDLE_ANGLE_RETURN_SPEED;
+            if (g_handle_angle < 0) g_handle_angle = 0;
+        }
+        else if (g_handle_angle < 0) {
+            g_handle_angle += HANDLE_ANGLE_RETURN_SPEED;
+            if (g_handle_angle > 0) g_handle_angle = 0;
+        }
+    }
+}
+
+void update_game(void) {
+    // Process player input
+    process_input();
+
+    // Update physics
+    car_physics_update(&g_car, &default_car_params);
 
     // Keep car within screen boundaries
-    if (car_x < 0) {
-        car_x = 0;
-    }
-    if (car_x + CAR_WIDTH > ST7789_WIDTH) {
-        car_x = ST7789_WIDTH - CAR_WIDTH;
-    }
-    if (car_y < 0) {
-        car_y = 0;
-    }
-    if (car_y + CAR_HEIGHT > ST7789_HEIGHT) {
-        car_y = ST7789_HEIGHT - CAR_HEIGHT;
-    }
+    car_clamp_to_screen(&g_car, ST7789_WIDTH, ST7789_HEIGHT, CAR_WIDTH, CAR_HEIGHT);
 
-    // Draw background map (covers entire screen, no need for fb_clear)
-    fb_draw_bitmap(0, 0, &easy_map_240x240_bitmap);
-
-    // Draw the car bitmap at current position
-    fb_draw_bitmap(car_x, car_y, &car_100x100_bitmap);
-
-    // Draw the handle bitmap at bottom-left corner (on top)
-    fb_draw_bitmap(HANDLE_X, HANDLE_Y, &handle_80x80_bitmap);
-
-    // Send frame buffer to LCD
-    fb_flush();
+    // Draw game
+    draw_game();
 }
 
 void run_interactive_demo(void) {
-    printf("\n=== Joystick-Controlled Car Demo ===\n");
-    printf("Use joystick to move the car\n");
+    printf("\n=== Car Physics Demo ===\n");
+    printf("A button: Accelerate forward\n");
+    printf("B button: Accelerate backward (reverse)\n");
+    printf("Joystick left/right: Steer (reversed when reversing)\n");
+    printf("Joystick down: Brake\n");
     printf("Press Ctrl+C to exit\n\n");
 
-    // Draw initial UI
-    draw_ui();
+    // Initialize car at center-right position, facing up (0 degrees)
+    int16_t start_x = ST7789_WIDTH - CAR_WIDTH / 2 - 10;   // Right side
+    int16_t start_y = ST7789_HEIGHT - CAR_HEIGHT / 2 - 10; // Bottom
+    car_physics_init(&g_car, start_x, start_y, 0);
+
+    // Draw initial frame
+    draw_game();
 
     uint32_t frame_count = 0;
 
     while (g_running) {
-        // Update UI every frame
-        update_ui();
+        // Update game every frame
+        update_game();
 
-        // Print position every 100 frames (~1 second)
+        // Print status every 100 frames (~1 second)
         if (frame_count % 100 == 0) {
-            printf("Car position: (%d, %d)\n", car_x, car_y);
+            printf("Pos: (%d, %d) Angle: %d Speed: %ld\n",
+                   car_get_screen_x(&g_car),
+                   car_get_screen_y(&g_car),
+                   g_car.angle,
+                   (long)g_car.speed);
         }
 
         frame_count++;

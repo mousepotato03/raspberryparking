@@ -19,6 +19,7 @@ SOURCES = $(SRC_DIR)/main.c \
           $(DRIVER_DIR)/lcd/framebuffer.c \
           $(DRIVER_DIR)/input/button.c \
           $(DRIVER_DIR)/input/joystick.c \
+          $(DRIVER_DIR)/game/car_physics.c \
           $(ASSETS_DIR)/images.c \
           $(ASSETS_DIR)/car.c \
           $(ASSETS_DIR)/handle.c \
@@ -39,6 +40,7 @@ directories:
 	@mkdir -p $(BUILD_DIR)/$(DRIVER_DIR)/common
 	@mkdir -p $(BUILD_DIR)/$(DRIVER_DIR)/lcd
 	@mkdir -p $(BUILD_DIR)/$(DRIVER_DIR)/input
+	@mkdir -p $(BUILD_DIR)/$(DRIVER_DIR)/game
 	@mkdir -p $(BUILD_DIR)/$(ASSETS_DIR)
 	@mkdir -p $(BIN_DIR)
 
