@@ -46,6 +46,7 @@ dkms.conf
 
 # Build directories
 build/
+bin/
 dist/
 
 # IDE specific files

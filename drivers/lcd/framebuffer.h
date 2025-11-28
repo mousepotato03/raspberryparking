@@ -66,24 +66,6 @@ void fb_draw_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color
 void fb_draw_bitmap(uint16_t x, uint16_t y, const bitmap* bmp);
 
 /**
- * @brief Draw a circle outline to the frame buffer
- * @param x0 X coordinate of center
- * @param y0 Y coordinate of center
- * @param radius Radius of the circle
- * @param color RGB565 color value
- */
-void fb_draw_circle(int16_t x0, int16_t y0, int16_t radius, uint16_t color);
-
-/**
- * @brief Draw a filled circle to the frame buffer
- * @param x0 X coordinate of center
- * @param y0 Y coordinate of center
- * @param radius Radius of the circle
- * @param color RGB565 color value
- */
-void fb_fill_circle(int16_t x0, int16_t y0, int16_t radius, uint16_t color);
-
-/**
  * @brief Send the entire frame buffer to the LCD display
  *
  * Transfers all 240x240 pixels from the frame buffer to the LCD in one operation.

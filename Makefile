@@ -20,7 +20,6 @@ SOURCES = $(SRC_DIR)/main.c \
           $(DRIVER_DIR)/input/button.c \
           $(DRIVER_DIR)/input/joystick.c \
           $(DRIVER_DIR)/game/car_physics.c \
-          $(ASSETS_DIR)/images.c \
           $(ASSETS_DIR)/car.c \
           $(ASSETS_DIR)/handle.c \
           $(ASSETS_DIR)/easy_map.c

@@ -42,41 +42,6 @@ void signal_handler(int sig) {
     printf("\nShutdown signal received...\n");
 }
 
-void test_display(void) {
-    printf("Testing display with color patterns...\n");
-
-    // Fill screen with different colors using frame buffer
-    fb_clear(COLOR_RED);
-    fb_flush();
-    bcm2835_delay(500);
-
-    fb_clear(COLOR_GREEN);
-    fb_flush();
-    bcm2835_delay(500);
-
-    fb_clear(COLOR_BLUE);
-    fb_flush();
-    bcm2835_delay(500);
-
-    fb_clear(COLOR_BLACK);
-    fb_flush();
-    bcm2835_delay(500);
-
-    // Test bitmap drawing
-    printf("Testing bitmap drawing...\n");
-    fb_clear(COLOR_BLACK);
-
-    // Draw test bitmap (4x4) at different positions
-    fb_draw_bitmap(50, 50, &clr_circle_bitmap);
-    fb_draw_bitmap(100, 100, &clr_circle_bitmap);
-    fb_draw_bitmap(150, 150, &clr_circle_bitmap);
-
-    fb_flush();
-    bcm2835_delay(1000);
-
-    printf("Display test complete\n");
-}
-
 void draw_game(void) {
     // Draw background map (covers entire screen)
     fb_draw_bitmap(0, 0, &easy_map_240x240_bitmap);
@@ -155,7 +120,7 @@ void update_game(void) {
 }
 
 void run_interactive_demo(void) {
-    printf("\n=== Car Physics Demo ===\n");
+    printf("\n=== RaspberryParking ===\n");
     printf("A button: Accelerate forward\n");
     printf("B button: Accelerate backward (reverse)\n");
     printf("Joystick left/right: Steer (reversed when reversing)\n");
@@ -170,22 +135,9 @@ void run_interactive_demo(void) {
     // Draw initial frame
     draw_game();
 
-    uint32_t frame_count = 0;
-
     while (g_running) {
         // Update game every frame
         update_game();
-
-        // Print status every 100 frames (~1 second)
-        if (frame_count % 100 == 0) {
-            printf("Pos: (%d, %d) Angle: %d Speed: %ld\n",
-                   car_get_screen_x(&g_car),
-                   car_get_screen_y(&g_car),
-                   g_car.angle,
-                   (long)g_car.speed);
-        }
-
-        frame_count++;
         bcm2835_delay(10);  // ~100 FPS
     }
 }
@@ -207,9 +159,6 @@ int main(void) {
     // Initialize frame buffer
     fb_init();
     printf("Frame buffer initialized\n");
-
-    // Test display
-    test_display();
 
     // Run interactive demo
     run_interactive_demo();
