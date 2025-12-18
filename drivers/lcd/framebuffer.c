@@ -220,3 +220,53 @@ void fb_draw_bitmap_rotated(int16_t cx, int16_t cy, const bitmap* bmp,
         }
     }
 }
+
+/**
+ * @brief Draw a line using Bresenham's algorithm
+ */
+static void fb_draw_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) {
+    int16_t dx = (x1 > x0) ? (x1 - x0) : (x0 - x1);
+    int16_t dy = (y1 > y0) ? (y1 - y0) : (y0 - y1);
+    int16_t sx = (x0 < x1) ? 1 : -1;
+    int16_t sy = (y0 < y1) ? 1 : -1;
+    int16_t err = dx - dy;
+
+    while (1) {
+        if (x0 >= 0 && x0 < ST7789_WIDTH && y0 >= 0 && y0 < ST7789_HEIGHT) {
+            framebuffer[y0][x0] = color;
+        }
+
+        if (x0 == x1 && y0 == y1) break;
+
+        int16_t e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x0 += sx; }
+        if (e2 < dx) { err += dx; y0 += sy; }
+    }
+}
+
+void fb_draw_rotated_rect_outline(int16_t cx, int16_t cy,
+                                   int16_t half_w, int16_t half_h,
+                                   int16_t angle, uint16_t color) {
+    // Get sin/cos values
+    int16_t sin_a = get_sin(angle);
+    int16_t cos_a = get_cos(angle);
+
+    // Local coordinates for 4 corners
+    int16_t local_x[4] = {-half_w, +half_w, +half_w, -half_w};
+    int16_t local_y[4] = {-half_h, -half_h, +half_h, +half_h};
+
+    // Calculate rotated screen coordinates
+    int16_t screen_x[4], screen_y[4];
+    for (int i = 0; i < 4; i++) {
+        int32_t rot_x = ((int32_t)local_x[i] * cos_a - (int32_t)local_y[i] * sin_a) >> FP_SHIFT;
+        int32_t rot_y = ((int32_t)local_x[i] * sin_a + (int32_t)local_y[i] * cos_a) >> FP_SHIFT;
+        screen_x[i] = cx + (int16_t)rot_x;
+        screen_y[i] = cy + (int16_t)rot_y;
+    }
+
+    // Draw 4 edges
+    fb_draw_line(screen_x[0], screen_y[0], screen_x[1], screen_y[1], color);  // top
+    fb_draw_line(screen_x[1], screen_y[1], screen_x[2], screen_y[2], color);  // right
+    fb_draw_line(screen_x[2], screen_y[2], screen_x[3], screen_y[3], color);  // bottom
+    fb_draw_line(screen_x[3], screen_y[3], screen_x[0], screen_y[0], color);  // left
+}

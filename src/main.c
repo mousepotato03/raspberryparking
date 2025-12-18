@@ -7,6 +7,7 @@
 #include "input/button.h"
 #include "input/joystick.h"
 #include "game/car_physics.h"
+#include "game/collision.h"
 #include "../assets/images.h"
 #include "../assets/car.h"
 #include "../assets/handle.h"
@@ -126,15 +127,32 @@ bool check_collision_aabb(int16_t x1, int16_t y1, int16_t w1, int16_t h1,
             y1 - half_h1 < y2 + half_h2 && y1 + half_h1 > y2 - half_h2);
 }
 
-// Check collision with any obstacle
+// Check collision with any obstacle (OBB vs AABB)
 bool check_obstacle_collision(void) {
     int16_t car_x = car_get_screen_x(&g_car);
     int16_t car_y = car_get_screen_y(&g_car);
+
+    // Player OBB (rotated hitbox)
+    obb_t player_obb = {
+        .cx = car_x,
+        .cy = car_y,
+        .half_w = CAR_HITBOX_WIDTH / 2,
+        .half_h = CAR_HITBOX_HEIGHT / 2,
+        .angle = g_car.angle
+    };
+
     for (int i = 0; i < g_obstacle_count; i++) {
-        if (g_obstacles[i].active &&
-            check_collision_aabb(car_x, car_y, CAR_HITBOX_WIDTH, CAR_HITBOX_HEIGHT,
-                                 g_obstacles[i].x, g_obstacles[i].y,
-                                 OBSTACLE_HITBOX_WIDTH, OBSTACLE_HITBOX_HEIGHT)) {
+        if (!g_obstacles[i].active) continue;
+
+        // Obstacle AABB (non-rotated)
+        aabb_t obstacle_aabb = {
+            .cx = g_obstacles[i].x,
+            .cy = g_obstacles[i].y,
+            .half_w = OBSTACLE_HITBOX_WIDTH / 2,
+            .half_h = OBSTACLE_HITBOX_HEIGHT / 2
+        };
+
+        if (check_collision_obb_aabb(&player_obb, &obstacle_aabb)) {
             return true;
         }
     }
@@ -212,15 +230,15 @@ void set_current_map(map_type_t map) {
         // 아랫줄 4개 (시작지점 제외): X = 25, 65, 105, 145, Y = 165
         g_obstacle_count = 8;
         // 윗줄 장애물
-        g_obstacles[0] = (obstacle_t){65, 55, true};
-        g_obstacles[1] = (obstacle_t){105, 55, true};
-        g_obstacles[2] = (obstacle_t){145, 55, true};
-        g_obstacles[3] = (obstacle_t){185, 55, true};
+        g_obstacles[0] = (obstacle_t){85, 55, true};
+        g_obstacles[1] = (obstacle_t){125, 55, true};
+        g_obstacles[2] = (obstacle_t){165, 55, true};
+        g_obstacles[3] = (obstacle_t){205, 55, true};
         // 아랫줄 장애물
-        g_obstacles[4] = (obstacle_t){25, 165, true};
-        g_obstacles[5] = (obstacle_t){65, 165, true};
-        g_obstacles[6] = (obstacle_t){105, 165, true};
-        g_obstacles[7] = (obstacle_t){145, 165, true};
+        g_obstacles[4] = (obstacle_t){45, 165, true};
+        g_obstacles[5] = (obstacle_t){85, 165, true};
+        g_obstacles[6] = (obstacle_t){125, 165, true};
+        g_obstacles[7] = (obstacle_t){165, 165, true};
         printf("Selected: Easy Map (with 8 obstacles)\n");
     } else {
         g_current_map_bitmap = &hard_map_240x240_bitmap;
@@ -268,8 +286,10 @@ void draw_game(void) {
                            g_handle_angle, TRANSPARENT_COLOR);
 
     // === Debug: Draw hitbox outlines ===
-    // 1. Player hitbox (Blue)
-    fb_draw_rect_outline(car_cx, car_cy, CAR_HITBOX_WIDTH, CAR_HITBOX_HEIGHT, DEBUG_COLOR_PLAYER);
+    // 1. Player hitbox (Blue) - Rotated OBB
+    fb_draw_rotated_rect_outline(car_cx, car_cy,
+                                  CAR_HITBOX_WIDTH / 2, CAR_HITBOX_HEIGHT / 2,
+                                  g_car.angle, DEBUG_COLOR_PLAYER);
 
     // 2. Obstacle hitboxes (Red)
     for (int i = 0; i < g_obstacle_count; i++) {

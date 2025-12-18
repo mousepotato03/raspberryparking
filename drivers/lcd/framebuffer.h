@@ -105,4 +105,18 @@ uint16_t* fb_get_buffer(void);
 void fb_draw_bitmap_rotated(int16_t cx, int16_t cy, const bitmap* bmp,
                             int16_t angle, uint16_t transparent_color);
 
+/**
+ * @brief Draw a rotated rectangle outline (OBB debug visualization)
+ *
+ * @param cx X coordinate of center
+ * @param cy Y coordinate of center
+ * @param half_w Half width of rectangle
+ * @param half_h Half height of rectangle
+ * @param angle Rotation angle in degrees (0-359)
+ * @param color RGB565 color value
+ */
+void fb_draw_rotated_rect_outline(int16_t cx, int16_t cy,
+                                   int16_t half_w, int16_t half_h,
+                                   int16_t angle, uint16_t color);
+
 #endif // FRAMEBUFFER_H
