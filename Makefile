@@ -22,7 +22,9 @@ SOURCES = $(SRC_DIR)/main.c \
           $(DRIVER_DIR)/game/car_physics.c \
           $(ASSETS_DIR)/car.c \
           $(ASSETS_DIR)/handle.c \
-          $(ASSETS_DIR)/easy_map.c
+          $(ASSETS_DIR)/easy_map.c \
+          $(ASSETS_DIR)/intro.c \
+          $(ASSETS_DIR)/hard_map.c
 
 # Object files
 OBJECTS = $(SOURCES:%.c=$(BUILD_DIR)/%.o)

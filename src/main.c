@@ -11,9 +11,20 @@
 #include "../assets/car.h"
 #include "../assets/handle.h"
 #include "../assets/easy_map.h"
+#include "../assets/intro.h"
+#include "../assets/hard_map.h"
 
 // Global flag for graceful shutdown
 static volatile int g_running = 1;
+
+// Map type definitions
+typedef enum {
+    MAP_EASY,
+    MAP_HARD
+} map_type_t;
+
+// Current map pointer
+static const bitmap* g_current_map_bitmap = NULL;
 
 // Car bitmap size constants
 #define CAR_WIDTH  100
@@ -46,9 +57,39 @@ void signal_handler(int sig) {
     printf("\nShutdown signal received...\n");
 }
 
+void show_intro_screen(void) {
+    fb_draw_bitmap(0, 0, &intro_240x240_bitmap);
+    fb_flush();
+}
+
+map_type_t wait_for_map_selection(void) {
+    while (g_running) {
+        if (button_read_raw(BTN_A) == BUTTON_PRESSED) {
+            button_wait_release(BTN_A);
+            return MAP_EASY;
+        }
+        if (button_read_raw(BTN_B) == BUTTON_PRESSED) {
+            button_wait_release(BTN_B);
+            return MAP_HARD;
+        }
+        bcm2835_delay(10);
+    }
+    return MAP_EASY;  // Default if interrupted
+}
+
+void set_current_map(map_type_t map) {
+    if (map == MAP_EASY) {
+        g_current_map_bitmap = &easy_map_240x240_bitmap;
+        printf("Selected: Easy Map\n");
+    } else {
+        g_current_map_bitmap = &hard_map_240x240_bitmap;
+        printf("Selected: Hard Map\n");
+    }
+}
+
 void draw_game(void) {
     // Draw background map (covers entire screen)
-    fb_draw_bitmap(0, 0, &easy_map_240x240_bitmap);
+    fb_draw_bitmap(0, 0, g_current_map_bitmap);
 
     // Get car screen position (center-based)
     int16_t car_cx = car_get_screen_x(&g_car);
@@ -124,7 +165,17 @@ void update_game(void) {
 }
 
 void run_interactive_demo(void) {
+    // Show intro screen
     printf("\n=== RaspberryParking ===\n");
+    printf("Press A for Easy Map, B for Hard Map\n");
+    show_intro_screen();
+
+    // Wait for map selection
+    map_type_t selected_map = wait_for_map_selection();
+    set_current_map(selected_map);
+
+    // Game instructions
+    printf("\n=== Game Controls ===\n");
     printf("A button: Accelerate forward\n");
     printf("B button: Accelerate backward (reverse)\n");
     printf("Joystick left/right: Steer (reversed when reversing)\n");
