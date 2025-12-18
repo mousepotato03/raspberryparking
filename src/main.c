@@ -8,12 +8,13 @@
 #include "input/joystick.h"
 #include "game/car_physics.h"
 #include "game/collision.h"
+#include "maps/map_types.h"
+#include "maps/easy_map.h"
+#include "maps/hard_map.h"
 #include "../assets/images.h"
 #include "../assets/car.h"
 #include "../assets/handle.h"
-#include "../assets/easy_map.h"
 #include "../assets/intro.h"
-#include "../assets/hard_map.h"
 #include "../assets/obstacle.h"
 #include "../assets/game_over.h"
 #include "../assets/complete.h"
@@ -21,14 +22,8 @@
 // Global flag for graceful shutdown
 static volatile int g_running = 1;
 
-// Map type definitions
-typedef enum {
-    MAP_EASY,
-    MAP_HARD
-} map_type_t;
-
-// Current map pointer
-static const bitmap* g_current_map_bitmap = NULL;
+// Current map config pointer
+static const map_config_t* g_current_map = NULL;
 
 // Car bitmap size constants
 #define CAR_WIDTH  100
@@ -57,27 +52,9 @@ static const bitmap* g_current_map_bitmap = NULL;
 #define OBSTACLE_HEIGHT 75
 #define OBSTACLE_HITBOX_WIDTH  35
 #define OBSTACLE_HITBOX_HEIGHT 55
-#define MAX_OBSTACLES 8
 
-// Goal constants (Easy map)
-#define GOAL_X 40
-#define GOAL_Y 50
-#define GOAL_TOLERANCE 10  // 골인 허용 오차 (px)
+// Timing constants
 #define GOAL_SUCCESS_DELAY 5000  // 5초 (ms)
-
-// Start position (Easy map - blue border)
-#define START_EASY_X 198
-#define START_EASY_Y 185
-
-// Hard map start position (blue border - left bottom)
-#define START_HARD_X 35
-#define START_HARD_Y 180
-
-// Hard map goal position (red border - right top)
-#define GOAL_HARD_X 200
-#define GOAL_HARD_Y 30
-#define GOAL_HARD_WIDTH 20
-#define GOAL_HARD_HEIGHT 20
 
 // Game state enum
 typedef enum {
@@ -87,14 +64,6 @@ typedef enum {
     GAME_STATE_GOAL_SUCCESS
 } game_state_t;
 
-// Obstacle struct
-typedef struct {
-    int16_t x;
-    int16_t y;
-    int16_t angle;  // 회전 각도 (0: 세로, 90: 가로)
-    bool active;
-} obstacle_t;
-
 // Car state (physics-based)
 static car_state_t g_car;
 
@@ -103,15 +72,14 @@ static int16_t g_handle_angle = 0;
 #define HANDLE_ANGLE_MAX 45
 #define HANDLE_ANGLE_RETURN_SPEED 5
 
+// Timing constants (ms)
+#define DEBOUNCE_DELAY_MS      200
+#define FRAME_DELAY_MS         10
+#define MAP_SELECTION_DELAY_MS 10
+#define KEY_WAIT_DELAY_MS      50
+
 // Game state
 static game_state_t g_game_state = GAME_STATE_INTRO;
-
-// Current map type (for obstacle logic)
-static map_type_t g_current_map_type = MAP_EASY;
-
-// Obstacles array (easy map)
-static obstacle_t g_obstacles[MAX_OBSTACLES];
-static int g_obstacle_count = 0;
 
 void signal_handler(int sig) {
     (void)sig;
@@ -130,10 +98,11 @@ bool check_collision_aabb(int16_t x1, int16_t y1, int16_t w1, int16_t h1,
 
 // Check collision with any obstacle (OBB vs AABB)
 bool check_obstacle_collision(void) {
+    if (!g_current_map) return false;
+
     int16_t car_x = car_get_screen_x(&g_car);
     int16_t car_y = car_get_screen_y(&g_car);
 
-    // Player OBB (rotated hitbox)
     obb_t player_obb = {
         .cx = car_x,
         .cy = car_y,
@@ -142,19 +111,20 @@ bool check_obstacle_collision(void) {
         .angle = g_car.angle
     };
 
-    for (int i = 0; i < g_obstacle_count; i++) {
-        if (!g_obstacles[i].active) continue;
+    const obstacle_t* obstacles = g_current_map->obstacles;
+    int count = g_current_map->obstacle_count;
 
-        // 90도 회전 시 width와 height 교환
-        int16_t half_w = (g_obstacles[i].angle == 90) ?
+    for (int i = 0; i < count; i++) {
+        if (!obstacles[i].active) continue;
+
+        int16_t half_w = (obstacles[i].angle == 90) ?
             OBSTACLE_HITBOX_HEIGHT / 2 : OBSTACLE_HITBOX_WIDTH / 2;
-        int16_t half_h = (g_obstacles[i].angle == 90) ?
+        int16_t half_h = (obstacles[i].angle == 90) ?
             OBSTACLE_HITBOX_WIDTH / 2 : OBSTACLE_HITBOX_HEIGHT / 2;
 
-        // Obstacle AABB (non-rotated, but dimensions swapped if rotated 90)
         aabb_t obstacle_aabb = {
-            .cx = g_obstacles[i].x,
-            .cy = g_obstacles[i].y,
+            .cx = obstacles[i].x,
+            .cy = obstacles[i].y,
             .half_w = half_w,
             .half_h = half_h
         };
@@ -168,10 +138,11 @@ bool check_obstacle_collision(void) {
 
 // Check if car reached the goal (player must fully cover the goal area)
 bool check_goal_reached(void) {
+    if (!g_current_map) return false;
+
     int16_t car_x = car_get_screen_x(&g_car);
     int16_t car_y = car_get_screen_y(&g_car);
 
-    // Player hitbox bounds (AABB)
     int16_t player_half_w = CAR_HITBOX_WIDTH / 2;
     int16_t player_half_h = CAR_HITBOX_HEIGHT / 2;
     int16_t player_left = car_x - player_half_w;
@@ -179,21 +150,13 @@ bool check_goal_reached(void) {
     int16_t player_top = car_y - player_half_h;
     int16_t player_bottom = car_y + player_half_h;
 
-    // Goal area bounds
-    int16_t goal_left, goal_right, goal_top, goal_bottom;
-    if (g_current_map_type == MAP_EASY) {
-        goal_left = GOAL_X - GOAL_TOLERANCE;
-        goal_right = GOAL_X + GOAL_TOLERANCE;
-        goal_top = GOAL_Y - GOAL_TOLERANCE;
-        goal_bottom = GOAL_Y + GOAL_TOLERANCE;
-    } else {
-        goal_left = GOAL_HARD_X - GOAL_HARD_WIDTH / 2;
-        goal_right = GOAL_HARD_X + GOAL_HARD_WIDTH / 2;
-        goal_top = GOAL_HARD_Y - GOAL_HARD_HEIGHT / 2;
-        goal_bottom = GOAL_HARD_Y + GOAL_HARD_HEIGHT / 2;
-    }
+    int16_t goal_half_w = g_current_map->goal_width / 2;
+    int16_t goal_half_h = g_current_map->goal_height / 2;
+    int16_t goal_left = g_current_map->goal_x - goal_half_w;
+    int16_t goal_right = g_current_map->goal_x + goal_half_w;
+    int16_t goal_top = g_current_map->goal_y - goal_half_h;
+    int16_t goal_bottom = g_current_map->goal_y + goal_half_h;
 
-    // Check if player fully contains the goal area
     return (player_left <= goal_left && player_right >= goal_right &&
             player_top <= goal_top && player_bottom >= goal_bottom);
 }
@@ -217,9 +180,9 @@ bool wait_for_any_key(void) {
 
 // Restart game to intro
 void restart_game(void) {
-    bcm2835_delay(200);  // Debounce
+    bcm2835_delay(DEBOUNCE_DELAY_MS);
     g_game_state = GAME_STATE_INTRO;
-    g_obstacle_count = 0;
+    g_current_map = NULL;
 }
 
 void show_intro_screen(void) {
@@ -237,144 +200,115 @@ map_type_t wait_for_map_selection(void) {
             button_wait_release(BTN_B);
             return MAP_HARD;
         }
-        bcm2835_delay(10);
+        bcm2835_delay(MAP_SELECTION_DELAY_MS);
     }
     return MAP_EASY;  // Default if interrupted
 }
 
 void set_current_map(map_type_t map) {
-    g_current_map_type = map;
-    if (map == MAP_EASY) {
-        g_current_map_bitmap = &easy_map_240x240_bitmap;
-        // Easy map: 8 obstacles
-        // 윗줄 4개 (골인지점 제외): X = 65, 105, 145, 185, Y = 55
-        // 아랫줄 4개 (시작지점 제외): X = 25, 65, 105, 145, Y = 165
-        g_obstacle_count = 8;
-        // 윗줄 장애물
-        g_obstacles[0] = (obstacle_t){85, 55, 0, true};
-        g_obstacles[1] = (obstacle_t){125, 65, 0, true};
-        g_obstacles[2] = (obstacle_t){165, 55, 0, true};
-        g_obstacles[3] = (obstacle_t){205, 55, 0, true};
-        // 아랫줄 장애물
-        g_obstacles[4] = (obstacle_t){45, 165, 0, true};
-        g_obstacles[5] = (obstacle_t){85, 165, 0, true};
-        g_obstacles[6] = (obstacle_t){125, 165, 0, true};
-        g_obstacles[7] = (obstacle_t){165, 155, 0, true};
-        printf("Selected: Easy Map (with 8 obstacles)\n");
-    } else {
-        g_current_map_bitmap = &hard_map_240x240_bitmap;
-        // Hard map: 7 obstacles in parking spaces
-        // 좌상단 세로 주차칸 2개, 좌하단 시작지점 위 1개, 우측 가로 주차칸 4개
-        // 시작 지점(파란색)과 골인 지점(빨간색)은 제외
-        g_obstacle_count = 7;
-        // 좌상단 세로 주차칸 (2개) - 세로 방향
-        g_obstacles[0] = (obstacle_t){30, 50, 0, true};
-        g_obstacles[1] = (obstacle_t){75, 50, 0, true};
-        // 좌하단 시작지점 위 주차칸 (1개) - 세로 방향
-        g_obstacles[2] = (obstacle_t){75, 180, 0, true};
-        // 우측 가로 주차라인 (4개) - 가로 방향 (90도 회전)
-        g_obstacles[3] = (obstacle_t){205, 75, 90, true};
-        g_obstacles[4] = (obstacle_t){145, 125, 60, true};
-        g_obstacles[5] = (obstacle_t){205, 155, 90, true};
-        g_obstacles[6] = (obstacle_t){205, 205, 90, true};
-        printf("Selected: Hard Map (with 7 obstacles)\n");
-    }
+    g_current_map = (map == MAP_EASY) ?
+        get_easy_map_config() : get_hard_map_config();
+    printf("Selected: %s Map (with %d obstacles)\n",
+           (map == MAP_EASY) ? "Easy" : "Hard",
+           g_current_map->obstacle_count);
 }
 
-void draw_game(void) {
-    // Draw background map (covers entire screen)
-    fb_draw_bitmap(0, 0, g_current_map_bitmap);
-
-    // Draw all obstacles
-    for (int i = 0; i < g_obstacle_count; i++) {
-        if (g_obstacles[i].active) {
-            fb_draw_bitmap_rotated(g_obstacles[i].x, g_obstacles[i].y,
-                                   &obstacle_75x75_bitmap, g_obstacles[i].angle, TRANSPARENT_COLOR);
-        }
-    }
-
-    // Get car screen position (center-based)
-    int16_t car_cx = car_get_screen_x(&g_car);
-    int16_t car_cy = car_get_screen_y(&g_car);
-
-    // Draw the car bitmap rotated at current position and angle
-    fb_draw_bitmap_rotated(car_cx, car_cy, &car_100x100_bitmap,
-                           g_car.angle, TRANSPARENT_COLOR);
-
-    // Draw the handle bitmap rotated at bottom-left corner
-    fb_draw_bitmap_rotated(HANDLE_X, HANDLE_Y, &handle_80x80_bitmap,
-                           g_handle_angle, TRANSPARENT_COLOR);
-
-    // === Debug: Draw hitbox outlines ===
-    // 1. Player hitbox (Blue) - Rotated OBB
+// Draw debug hitboxes for player, obstacles, and goal
+static void draw_debug_hitboxes(int16_t car_cx, int16_t car_cy) {
+    // Player hitbox (Blue)
     fb_draw_rotated_rect_outline(car_cx, car_cy,
                                   CAR_HITBOX_WIDTH / 2, CAR_HITBOX_HEIGHT / 2,
                                   g_car.angle, DEBUG_COLOR_PLAYER);
 
-    // 2. Obstacle hitboxes (Red)
-    for (int i = 0; i < g_obstacle_count; i++) {
-        if (g_obstacles[i].active) {
-            // 90도 회전 시 width와 height 교환
-            int16_t obs_w = (g_obstacles[i].angle == 90) ?
+    // Obstacle hitboxes (Red)
+    const obstacle_t* obstacles = g_current_map->obstacles;
+    int count = g_current_map->obstacle_count;
+    for (int i = 0; i < count; i++) {
+        if (obstacles[i].active) {
+            int16_t obs_w = (obstacles[i].angle == 90) ?
                 OBSTACLE_HITBOX_HEIGHT : OBSTACLE_HITBOX_WIDTH;
-            int16_t obs_h = (g_obstacles[i].angle == 90) ?
+            int16_t obs_h = (obstacles[i].angle == 90) ?
                 OBSTACLE_HITBOX_WIDTH : OBSTACLE_HITBOX_HEIGHT;
-            fb_draw_rect_outline(g_obstacles[i].x, g_obstacles[i].y,
+            fb_draw_rect_outline(obstacles[i].x, obstacles[i].y,
                                  obs_w, obs_h, DEBUG_COLOR_OBSTACLE);
         }
     }
 
-    // 3. Goal area (Green)
-    if (g_current_map_type == MAP_EASY) {
-        fb_draw_rect_outline(GOAL_X, GOAL_Y, GOAL_TOLERANCE * 2, GOAL_TOLERANCE * 2, DEBUG_COLOR_GOAL);
-    } else {
-        fb_draw_rect_outline(GOAL_HARD_X, GOAL_HARD_Y, GOAL_HARD_WIDTH, GOAL_HARD_HEIGHT, DEBUG_COLOR_GOAL);
+    // Goal area (Green)
+    fb_draw_rect_outline(g_current_map->goal_x, g_current_map->goal_y,
+                         g_current_map->goal_width, g_current_map->goal_height,
+                         DEBUG_COLOR_GOAL);
+}
+
+void draw_game(void) {
+    if (!g_current_map) return;
+
+    // Draw background map
+    fb_draw_bitmap(0, 0, g_current_map->map_bitmap);
+
+    // Draw all obstacles
+    const obstacle_t* obstacles = g_current_map->obstacles;
+    int count = g_current_map->obstacle_count;
+    for (int i = 0; i < count; i++) {
+        if (obstacles[i].active) {
+            fb_draw_bitmap_rotated(obstacles[i].x, obstacles[i].y,
+                                   &obstacle_75x75_bitmap, obstacles[i].angle, TRANSPARENT_COLOR);
+        }
     }
 
-    // Send frame buffer to LCD
+    // Draw car
+    int16_t car_cx = car_get_screen_x(&g_car);
+    int16_t car_cy = car_get_screen_y(&g_car);
+    fb_draw_bitmap_rotated(car_cx, car_cy, &car_100x100_bitmap,
+                           g_car.angle, TRANSPARENT_COLOR);
+
+    // Draw handle
+    fb_draw_bitmap_rotated(HANDLE_X, HANDLE_Y, &handle_80x80_bitmap,
+                           g_handle_angle, TRANSPARENT_COLOR);
+
+#ifdef DEBUG
+    // Debug: Draw hitbox outlines
+    draw_debug_hitboxes(car_cx, car_cy);
+#endif
+
     fb_flush();
 }
 
+// Return handle to center gradually
+static void update_handle_return(void) {
+    if (g_handle_angle > 0) {
+        g_handle_angle -= HANDLE_ANGLE_RETURN_SPEED;
+        if (g_handle_angle < 0) g_handle_angle = 0;
+    } else if (g_handle_angle < 0) {
+        g_handle_angle += HANDLE_ANGLE_RETURN_SPEED;
+        if (g_handle_angle > 0) g_handle_angle = 0;
+    }
+}
+
 void process_input(void) {
-    // Read joystick input
     joystick_state_t joy = joystick_read_state();
 
-    // === Acceleration / Deceleration ===
-    // Button A: Forward acceleration
+    // Acceleration
     if (button_read_raw(BTN_A) == BUTTON_PRESSED) {
         car_apply_acceleration(&g_car, &default_car_params, true);
-    }
-    // Button B: Reverse acceleration
-    else if (button_read_raw(BTN_B) == BUTTON_PRESSED) {
+    } else if (button_read_raw(BTN_B) == BUTTON_PRESSED) {
         car_apply_acceleration(&g_car, &default_car_params, false);
     }
 
-    // Joystick down: Brake
+    // Brake
     if (joy.down) {
         car_apply_brake(&g_car, &default_car_params);
     }
 
-    // === Steering ===
-    // Joystick left: Turn left
+    // Steering
     if (joy.left) {
         car_apply_turn(&g_car, &default_car_params, -1);
         g_handle_angle = -HANDLE_ANGLE_MAX;
-    }
-    // Joystick right: Turn right
-    else if (joy.right) {
+    } else if (joy.right) {
         car_apply_turn(&g_car, &default_car_params, +1);
         g_handle_angle = HANDLE_ANGLE_MAX;
-    }
-    else {
-        // Return handle to center gradually
-        if (g_handle_angle > 0) {
-            g_handle_angle -= HANDLE_ANGLE_RETURN_SPEED;
-            if (g_handle_angle < 0) g_handle_angle = 0;
-        }
-        else if (g_handle_angle < 0) {
-            g_handle_angle += HANDLE_ANGLE_RETURN_SPEED;
-            if (g_handle_angle > 0) g_handle_angle = 0;
-        }
+    } else {
+        update_handle_return();
     }
 }
 
@@ -406,95 +340,91 @@ void update_game(void) {
     draw_game();
 }
 
+// State handler: INTRO
+static void handle_state_intro(void) {
+    printf("\n=== RaspberryParking ===\n");
+    printf("Press A for Easy Map, B for Hard Map\n");
+    show_intro_screen();
+
+    map_type_t selected_map = wait_for_map_selection();
+    if (!g_running) return;
+
+    set_current_map(selected_map);
+
+    printf("\n=== Game Controls ===\n");
+    printf("A button: Accelerate forward\n");
+    printf("B button: Accelerate backward (reverse)\n");
+    printf("Joystick left/right: Steer\n");
+    printf("Joystick down: Brake\n");
+    printf("Press Ctrl+C to exit\n\n");
+
+    car_physics_init(&g_car, g_current_map->start_x, g_current_map->start_y, 0);
+    g_handle_angle = 0;
+
+    g_game_state = GAME_STATE_PLAYING;
+    draw_game();
+}
+
+// State handler: PLAYING
+static void handle_state_playing(void) {
+    update_game();
+    bcm2835_delay(FRAME_DELAY_MS);
+}
+
+// State handler: GAMEOVER
+static void handle_state_gameover(void) {
+    show_game_over_screen();
+
+    while (g_running && !wait_for_any_key()) {
+        bcm2835_delay(KEY_WAIT_DELAY_MS);
+    }
+
+    if (g_running) {
+        restart_game();
+    }
+}
+
+// State handler: GOAL_SUCCESS
+static void handle_state_goal_success(void) {
+    draw_game();
+
+    bool is_easy = (g_current_map == get_easy_map_config());
+    if (is_easy) {
+        printf("Switching to Hard Map in 5 seconds...\n");
+        bcm2835_delay(GOAL_SUCCESS_DELAY);
+
+        set_current_map(MAP_HARD);
+        car_physics_init(&g_car, g_current_map->start_x, g_current_map->start_y, 0);
+        g_handle_angle = 0;
+
+        g_game_state = GAME_STATE_PLAYING;
+        draw_game();
+    } else {
+        printf("SUCCESS! Returning to intro in 5 seconds...\n");
+        fb_draw_bitmap(0, 0, &complete_240x240_bitmap);
+        fb_flush();
+        bcm2835_delay(GOAL_SUCCESS_DELAY);
+
+        g_game_state = GAME_STATE_INTRO;
+        g_current_map = NULL;
+    }
+}
+
 void run_interactive_demo(void) {
     while (g_running) {
         switch (g_game_state) {
-            case GAME_STATE_INTRO: {
-                // Show intro screen
-                printf("\n=== RaspberryParking ===\n");
-                printf("Press A for Easy Map, B for Hard Map\n");
-                show_intro_screen();
-
-                // Wait for map selection
-                map_type_t selected_map = wait_for_map_selection();
-                if (!g_running) break;  // Check for shutdown signal
-
-                set_current_map(selected_map);
-
-                // Game instructions
-                printf("\n=== Game Controls ===\n");
-                printf("A button: Accelerate forward\n");
-                printf("B button: Accelerate backward (reverse)\n");
-                printf("Joystick left/right: Steer\n");
-                printf("Joystick down: Brake\n");
-                printf("Press Ctrl+C to exit\n\n");
-
-                // Initialize car at start position based on map type
-                int16_t start_x, start_y;
-                if (g_current_map_type == MAP_EASY) {
-                    // Easy map: start at blue border (bottom-right)
-                    start_x = START_EASY_X;
-                    start_y = START_EASY_Y;
-                } else {
-                    // Hard map: start at blue border (left-bottom)
-                    start_x = START_HARD_X;
-                    start_y = START_HARD_Y;
-                }
-                car_physics_init(&g_car, start_x, start_y, 0);
-                g_handle_angle = 0;
-
-                // Start playing
-                g_game_state = GAME_STATE_PLAYING;
-                draw_game();
+            case GAME_STATE_INTRO:
+                handle_state_intro();
                 break;
-            }
-
             case GAME_STATE_PLAYING:
-                update_game();
-                bcm2835_delay(10);  // ~100 FPS
+                handle_state_playing();
                 break;
-
             case GAME_STATE_GAMEOVER:
-                show_game_over_screen();
-
-                // Wait for any key to restart
-                while (g_running && !wait_for_any_key()) {
-                    bcm2835_delay(50);
-                }
-
-                if (g_running) {
-                    restart_game();
-                }
+                handle_state_gameover();
                 break;
-
-            case GAME_STATE_GOAL_SUCCESS: {
-                draw_game();  // Show final position
-
-                if (g_current_map_type == MAP_EASY) {
-                    // Easy map clear: switch to Hard map
-                    printf("Switching to Hard Map in 5 seconds...\n");
-                    bcm2835_delay(GOAL_SUCCESS_DELAY);
-
-                    set_current_map(MAP_HARD);
-
-                    // Initialize car at Hard map start position (blue border)
-                    car_physics_init(&g_car, START_HARD_X, START_HARD_Y, 0);
-                    g_handle_angle = 0;
-
-                    g_game_state = GAME_STATE_PLAYING;
-                    draw_game();
-                } else {
-                    // Hard map clear: show complete screen and return to intro
-                    printf("SUCCESS! Returning to intro in 5 seconds...\n");
-                    fb_draw_bitmap(0, 0, &complete_240x240_bitmap);
-                    fb_flush();
-                    bcm2835_delay(GOAL_SUCCESS_DELAY);
-
-                    g_game_state = GAME_STATE_INTRO;
-                    g_obstacle_count = 0;
-                }
+            case GAME_STATE_GOAL_SUCCESS:
+                handle_state_goal_success();
                 break;
-            }
         }
     }
 }
