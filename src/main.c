@@ -91,6 +91,7 @@ typedef enum {
 typedef struct {
     int16_t x;
     int16_t y;
+    int16_t angle;  // 회전 각도 (0: 세로, 90: 가로)
     bool active;
 } obstacle_t;
 
@@ -144,12 +145,18 @@ bool check_obstacle_collision(void) {
     for (int i = 0; i < g_obstacle_count; i++) {
         if (!g_obstacles[i].active) continue;
 
-        // Obstacle AABB (non-rotated)
+        // 90도 회전 시 width와 height 교환
+        int16_t half_w = (g_obstacles[i].angle == 90) ?
+            OBSTACLE_HITBOX_HEIGHT / 2 : OBSTACLE_HITBOX_WIDTH / 2;
+        int16_t half_h = (g_obstacles[i].angle == 90) ?
+            OBSTACLE_HITBOX_WIDTH / 2 : OBSTACLE_HITBOX_HEIGHT / 2;
+
+        // Obstacle AABB (non-rotated, but dimensions swapped if rotated 90)
         aabb_t obstacle_aabb = {
             .cx = g_obstacles[i].x,
             .cy = g_obstacles[i].y,
-            .half_w = OBSTACLE_HITBOX_WIDTH / 2,
-            .half_h = OBSTACLE_HITBOX_HEIGHT / 2
+            .half_w = half_w,
+            .half_h = half_h
         };
 
         if (check_collision_obb_aabb(&player_obb, &obstacle_aabb)) {
@@ -244,34 +251,33 @@ void set_current_map(map_type_t map) {
         // 아랫줄 4개 (시작지점 제외): X = 25, 65, 105, 145, Y = 165
         g_obstacle_count = 8;
         // 윗줄 장애물
-        g_obstacles[0] = (obstacle_t){85, 55, true};
-        g_obstacles[1] = (obstacle_t){125, 55, true};
-        g_obstacles[2] = (obstacle_t){165, 55, true};
-        g_obstacles[3] = (obstacle_t){205, 55, true};
+        g_obstacles[0] = (obstacle_t){85, 55, 0, true};
+        g_obstacles[1] = (obstacle_t){125, 55, 0, true};
+        g_obstacles[2] = (obstacle_t){165, 55, 0, true};
+        g_obstacles[3] = (obstacle_t){205, 55, 0, true};
         // 아랫줄 장애물
-        g_obstacles[4] = (obstacle_t){45, 165, true};
-        g_obstacles[5] = (obstacle_t){85, 165, true};
-        g_obstacles[6] = (obstacle_t){125, 165, true};
-        g_obstacles[7] = (obstacle_t){165, 165, true};
+        g_obstacles[4] = (obstacle_t){45, 165, 0, true};
+        g_obstacles[5] = (obstacle_t){85, 165, 0, true};
+        g_obstacles[6] = (obstacle_t){125, 165, 0, true};
+        g_obstacles[7] = (obstacle_t){165, 165, 0, true};
         printf("Selected: Easy Map (with 8 obstacles)\n");
     } else {
         g_current_map_bitmap = &hard_map_240x240_bitmap;
-        // Hard map: 8 obstacles in parking spaces
-        // 좌상단 세로 주차칸 2개, 상단 중앙 가로 주차칸 2개, 우하단 가로 주차칸 4개
+        // Hard map: 7 obstacles in parking spaces
+        // 좌상단 세로 주차칸 2개, 좌하단 시작지점 위 1개, 우측 가로 주차칸 4개
         // 시작 지점(파란색)과 골인 지점(빨간색)은 제외
-        g_obstacle_count = 8;
-        // 좌상단 세로 주차칸 (2개)
-        g_obstacles[0] = (obstacle_t){30, 40, true};
-        g_obstacles[1] = (obstacle_t){30, 95, true};
-        // 상단 중앙 가로 주차칸 (2개)
-        g_obstacles[2] = (obstacle_t){85, 25, true};
-        g_obstacles[3] = (obstacle_t){85, 65, true};
-        // 우하단 가로 주차칸 (4개)
-        g_obstacles[4] = (obstacle_t){95, 205, true};
-        g_obstacles[5] = (obstacle_t){135, 205, true};
-        g_obstacles[6] = (obstacle_t){175, 205, true};
-        g_obstacles[7] = (obstacle_t){215, 205, true};
-        printf("Selected: Hard Map (with 8 obstacles)\n");
+        g_obstacle_count = 7;
+        // 좌상단 세로 주차칸 (2개) - 세로 방향
+        g_obstacles[0] = (obstacle_t){30, 40, 0, true};
+        g_obstacles[1] = (obstacle_t){30, 95, 0, true};
+        // 좌하단 시작지점 위 주차칸 (1개) - 세로 방향
+        g_obstacles[2] = (obstacle_t){35, 135, 0, true};
+        // 우측 가로 주차라인 (4개) - 가로 방향 (90도 회전)
+        g_obstacles[3] = (obstacle_t){95, 205, 90, true};
+        g_obstacles[4] = (obstacle_t){135, 205, 90, true};
+        g_obstacles[5] = (obstacle_t){175, 205, 90, true};
+        g_obstacles[6] = (obstacle_t){215, 205, 90, true};
+        printf("Selected: Hard Map (with 7 obstacles)\n");
     }
 }
 
@@ -283,7 +289,7 @@ void draw_game(void) {
     for (int i = 0; i < g_obstacle_count; i++) {
         if (g_obstacles[i].active) {
             fb_draw_bitmap_rotated(g_obstacles[i].x, g_obstacles[i].y,
-                                   &obstacle_75x75_bitmap, 0, TRANSPARENT_COLOR);
+                                   &obstacle_75x75_bitmap, g_obstacles[i].angle, TRANSPARENT_COLOR);
         }
     }
 
@@ -308,8 +314,13 @@ void draw_game(void) {
     // 2. Obstacle hitboxes (Red)
     for (int i = 0; i < g_obstacle_count; i++) {
         if (g_obstacles[i].active) {
+            // 90도 회전 시 width와 height 교환
+            int16_t obs_w = (g_obstacles[i].angle == 90) ?
+                OBSTACLE_HITBOX_HEIGHT : OBSTACLE_HITBOX_WIDTH;
+            int16_t obs_h = (g_obstacles[i].angle == 90) ?
+                OBSTACLE_HITBOX_WIDTH : OBSTACLE_HITBOX_HEIGHT;
             fb_draw_rect_outline(g_obstacles[i].x, g_obstacles[i].y,
-                                 OBSTACLE_HITBOX_WIDTH, OBSTACLE_HITBOX_HEIGHT, DEBUG_COLOR_OBSTACLE);
+                                 obs_w, obs_h, DEBUG_COLOR_OBSTACLE);
         }
     }
 
