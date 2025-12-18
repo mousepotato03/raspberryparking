@@ -60,14 +60,14 @@ static const bitmap* g_current_map_bitmap = NULL;
 #define MAX_OBSTACLES 8
 
 // Goal constants (Easy map)
-#define GOAL_X 25
-#define GOAL_Y 55
+#define GOAL_X 40
+#define GOAL_Y 50
 #define GOAL_TOLERANCE 10  // 골인 허용 오차 (px)
 #define GOAL_SUCCESS_DELAY 5000  // 5초 (ms)
 
 // Start position (Easy map - blue border)
-#define START_EASY_X 205
-#define START_EASY_Y 165
+#define START_EASY_X 198
+#define START_EASY_Y 185
 
 // Hard map start position (blue border - left bottom)
 #define START_HARD_X 35
@@ -252,14 +252,14 @@ void set_current_map(map_type_t map) {
         g_obstacle_count = 8;
         // 윗줄 장애물
         g_obstacles[0] = (obstacle_t){85, 55, 0, true};
-        g_obstacles[1] = (obstacle_t){125, 55, 0, true};
+        g_obstacles[1] = (obstacle_t){125, 65, 0, true};
         g_obstacles[2] = (obstacle_t){165, 55, 0, true};
         g_obstacles[3] = (obstacle_t){205, 55, 0, true};
         // 아랫줄 장애물
         g_obstacles[4] = (obstacle_t){45, 165, 0, true};
         g_obstacles[5] = (obstacle_t){85, 165, 0, true};
         g_obstacles[6] = (obstacle_t){125, 165, 0, true};
-        g_obstacles[7] = (obstacle_t){165, 165, 0, true};
+        g_obstacles[7] = (obstacle_t){165, 155, 0, true};
         printf("Selected: Easy Map (with 8 obstacles)\n");
     } else {
         g_current_map_bitmap = &hard_map_240x240_bitmap;
@@ -268,15 +268,15 @@ void set_current_map(map_type_t map) {
         // 시작 지점(파란색)과 골인 지점(빨간색)은 제외
         g_obstacle_count = 7;
         // 좌상단 세로 주차칸 (2개) - 세로 방향
-        g_obstacles[0] = (obstacle_t){30, 40, 0, true};
-        g_obstacles[1] = (obstacle_t){30, 95, 0, true};
+        g_obstacles[0] = (obstacle_t){30, 50, 0, true};
+        g_obstacles[1] = (obstacle_t){75, 50, 0, true};
         // 좌하단 시작지점 위 주차칸 (1개) - 세로 방향
-        g_obstacles[2] = (obstacle_t){35, 135, 0, true};
+        g_obstacles[2] = (obstacle_t){75, 180, 0, true};
         // 우측 가로 주차라인 (4개) - 가로 방향 (90도 회전)
-        g_obstacles[3] = (obstacle_t){95, 205, 90, true};
-        g_obstacles[4] = (obstacle_t){135, 205, 90, true};
-        g_obstacles[5] = (obstacle_t){175, 205, 90, true};
-        g_obstacles[6] = (obstacle_t){215, 205, 90, true};
+        g_obstacles[3] = (obstacle_t){205, 75, 90, true};
+        g_obstacles[4] = (obstacle_t){145, 125, 60, true};
+        g_obstacles[5] = (obstacle_t){205, 155, 90, true};
+        g_obstacles[6] = (obstacle_t){205, 205, 90, true};
         printf("Selected: Hard Map (with 7 obstacles)\n");
     }
 }
