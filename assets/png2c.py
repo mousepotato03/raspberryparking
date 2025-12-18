@@ -24,7 +24,12 @@ def image_to_rgb565_words(img):
     for y in range(h):  # top→down
         for x in range(w):
             r, g, b, a = px[x, y]
-            words.append(pack_rgb565(r, g, b))
+            # Transparent pixels (alpha < 128) become black (0x0000)
+            # which matches TRANSPARENT_COLOR in the game
+            if a < 128:
+                words.append(0x0000)
+            else:
+                words.append(pack_rgb565(r, g, b))
     return w, h, words
 
 
