@@ -13,6 +13,8 @@
 #include "../assets/easy_map.h"
 #include "../assets/intro.h"
 #include "../assets/hard_map.h"
+#include "../assets/obstacle.h"
+#include "../assets/game_over.h"
 
 // Global flag for graceful shutdown
 static volatile int g_running = 1;
@@ -32,7 +34,7 @@ static const bitmap* g_current_map_bitmap = NULL;
 
 // Car hitbox size (actual car bounds within bitmap)
 #define CAR_HITBOX_WIDTH  30
-#define CAR_HITBOX_HEIGHT 45  // 55 -> 45: 상하 경계 충돌 마진 확보
+#define CAR_HITBOX_HEIGHT 30  // 55 -> 45: 상하 경계 충돌 마진 확보
 
 // Handle bitmap size and position constants
 #define HANDLE_WIDTH  80
@@ -43,6 +45,28 @@ static const bitmap* g_current_map_bitmap = NULL;
 // Transparent color for bitmaps
 #define TRANSPARENT_COLOR 0x0000
 
+// Obstacle constants
+#define OBSTACLE_WIDTH  100
+#define OBSTACLE_HEIGHT 100
+#define OBSTACLE_HITBOX_WIDTH  30
+#define OBSTACLE_HITBOX_HEIGHT 30
+#define OBSTACLE_EASY_X 180
+#define OBSTACLE_EASY_Y 60
+
+// Game state enum
+typedef enum {
+    GAME_STATE_INTRO,
+    GAME_STATE_PLAYING,
+    GAME_STATE_GAMEOVER
+} game_state_t;
+
+// Obstacle struct
+typedef struct {
+    int16_t x;
+    int16_t y;
+    bool active;
+} obstacle_t;
+
 // Car state (physics-based)
 static car_state_t g_car;
 
@@ -51,10 +75,62 @@ static int16_t g_handle_angle = 0;
 #define HANDLE_ANGLE_MAX 45
 #define HANDLE_ANGLE_RETURN_SPEED 5
 
+// Game state
+static game_state_t g_game_state = GAME_STATE_INTRO;
+
+// Current map type (for obstacle logic)
+static map_type_t g_current_map_type = MAP_EASY;
+
+// Obstacle (easy map only)
+static obstacle_t g_obstacle = {0, 0, false};
+
 void signal_handler(int sig) {
     (void)sig;
     g_running = 0;
     printf("\nShutdown signal received...\n");
+}
+
+// AABB collision detection
+bool check_collision_aabb(int16_t x1, int16_t y1, int16_t w1, int16_t h1,
+                          int16_t x2, int16_t y2, int16_t w2, int16_t h2) {
+    int16_t half_w1 = w1 / 2, half_h1 = h1 / 2;
+    int16_t half_w2 = w2 / 2, half_h2 = h2 / 2;
+    return (x1 - half_w1 < x2 + half_w2 && x1 + half_w1 > x2 - half_w2 &&
+            y1 - half_h1 < y2 + half_h2 && y1 + half_h1 > y2 - half_h2);
+}
+
+// Check collision with obstacle
+bool check_obstacle_collision(void) {
+    if (!g_obstacle.active) return false;
+    int16_t car_x = car_get_screen_x(&g_car);
+    int16_t car_y = car_get_screen_y(&g_car);
+    return check_collision_aabb(car_x, car_y, CAR_HITBOX_WIDTH, CAR_HITBOX_HEIGHT,
+                                g_obstacle.x, g_obstacle.y,
+                                OBSTACLE_HITBOX_WIDTH, OBSTACLE_HITBOX_HEIGHT);
+}
+
+// Show game over screen
+void show_game_over_screen(void) {
+    fb_draw_bitmap(0, 0, &game_over_240x240_bitmap);
+    fb_flush();
+    printf("GAME OVER! Press any button to restart.\n");
+}
+
+// Wait for any key press
+bool wait_for_any_key(void) {
+    if (button_read_raw(BTN_A) == BUTTON_PRESSED ||
+        button_read_raw(BTN_B) == BUTTON_PRESSED) {
+        return true;
+    }
+    joystick_state_t joy = joystick_read_state();
+    return (joy.up || joy.down || joy.left || joy.right);
+}
+
+// Restart game to intro
+void restart_game(void) {
+    bcm2835_delay(200);  // Debounce
+    g_game_state = GAME_STATE_INTRO;
+    g_obstacle.active = false;
 }
 
 void show_intro_screen(void) {
@@ -78,18 +154,31 @@ map_type_t wait_for_map_selection(void) {
 }
 
 void set_current_map(map_type_t map) {
+    g_current_map_type = map;
     if (map == MAP_EASY) {
         g_current_map_bitmap = &easy_map_240x240_bitmap;
-        printf("Selected: Easy Map\n");
+        // Easy map: activate obstacle at top-right
+        g_obstacle.x = OBSTACLE_EASY_X;
+        g_obstacle.y = OBSTACLE_EASY_Y;
+        g_obstacle.active = true;
+        printf("Selected: Easy Map (with obstacle)\n");
     } else {
         g_current_map_bitmap = &hard_map_240x240_bitmap;
-        printf("Selected: Hard Map\n");
+        // Hard map: no obstacle
+        g_obstacle.active = false;
+        printf("Selected: Hard Map (no obstacle)\n");
     }
 }
 
 void draw_game(void) {
     // Draw background map (covers entire screen)
     fb_draw_bitmap(0, 0, g_current_map_bitmap);
+
+    // Draw obstacle (if active)
+    if (g_obstacle.active) {
+        fb_draw_bitmap_rotated(g_obstacle.x, g_obstacle.y,
+                               &obstacle_100x100_bitmap, 0, TRANSPARENT_COLOR);
+    }
 
     // Get car screen position (center-based)
     int16_t car_cx = car_get_screen_x(&g_car);
@@ -160,40 +249,70 @@ void update_game(void) {
     // Keep car within screen boundaries (use hitbox size, not bitmap size)
     car_clamp_to_screen(&g_car, ST7789_WIDTH, ST7789_HEIGHT, CAR_HITBOX_WIDTH, CAR_HITBOX_HEIGHT);
 
+    // Check obstacle collision
+    if (g_game_state == GAME_STATE_PLAYING && check_obstacle_collision()) {
+        printf("Collision detected!\n");
+        g_game_state = GAME_STATE_GAMEOVER;
+        return;
+    }
+
     // Draw game
     draw_game();
 }
 
 void run_interactive_demo(void) {
-    // Show intro screen
-    printf("\n=== RaspberryParking ===\n");
-    printf("Press A for Easy Map, B for Hard Map\n");
-    show_intro_screen();
-
-    // Wait for map selection
-    map_type_t selected_map = wait_for_map_selection();
-    set_current_map(selected_map);
-
-    // Game instructions
-    printf("\n=== Game Controls ===\n");
-    printf("A button: Accelerate forward\n");
-    printf("B button: Accelerate backward (reverse)\n");
-    printf("Joystick left/right: Steer (reversed when reversing)\n");
-    printf("Joystick down: Brake\n");
-    printf("Press Ctrl+C to exit\n\n");
-
-    // Initialize car at center-right position, facing up (0 degrees)
-    int16_t start_x = ST7789_WIDTH - CAR_WIDTH / 2 - 10;   // Right side
-    int16_t start_y = ST7789_HEIGHT - CAR_HEIGHT / 2 - 10; // Bottom
-    car_physics_init(&g_car, start_x, start_y, 0);
-
-    // Draw initial frame
-    draw_game();
-
     while (g_running) {
-        // Update game every frame
-        update_game();
-        bcm2835_delay(10);  // ~100 FPS
+        switch (g_game_state) {
+            case GAME_STATE_INTRO: {
+                // Show intro screen
+                printf("\n=== RaspberryParking ===\n");
+                printf("Press A for Easy Map, B for Hard Map\n");
+                show_intro_screen();
+
+                // Wait for map selection
+                map_type_t selected_map = wait_for_map_selection();
+                if (!g_running) break;  // Check for shutdown signal
+
+                set_current_map(selected_map);
+
+                // Game instructions
+                printf("\n=== Game Controls ===\n");
+                printf("A button: Accelerate forward\n");
+                printf("B button: Accelerate backward (reverse)\n");
+                printf("Joystick left/right: Steer\n");
+                printf("Joystick down: Brake\n");
+                printf("Press Ctrl+C to exit\n\n");
+
+                // Initialize car at bottom-right position, facing up (0 degrees)
+                int16_t start_x = ST7789_WIDTH - CAR_WIDTH / 2 - 10;
+                int16_t start_y = ST7789_HEIGHT - CAR_HEIGHT / 2 - 10;
+                car_physics_init(&g_car, start_x, start_y, 0);
+                g_handle_angle = 0;
+
+                // Start playing
+                g_game_state = GAME_STATE_PLAYING;
+                draw_game();
+                break;
+            }
+
+            case GAME_STATE_PLAYING:
+                update_game();
+                bcm2835_delay(10);  // ~100 FPS
+                break;
+
+            case GAME_STATE_GAMEOVER:
+                show_game_over_screen();
+
+                // Wait for any key to restart
+                while (g_running && !wait_for_any_key()) {
+                    bcm2835_delay(50);
+                }
+
+                if (g_running) {
+                    restart_game();
+                }
+                break;
+        }
     }
 }
 
