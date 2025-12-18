@@ -46,6 +46,11 @@ static const bitmap* g_current_map_bitmap = NULL;
 // Transparent color for bitmaps
 #define TRANSPARENT_COLOR 0x0000
 
+// Debug hitbox colors
+#define DEBUG_COLOR_PLAYER   0x001F  // Blue
+#define DEBUG_COLOR_OBSTACLE 0xF800  // Red
+#define DEBUG_COLOR_GOAL     0x07E0  // Green
+
 // Obstacle constants
 #define OBSTACLE_WIDTH  50
 #define OBSTACLE_HEIGHT 50
@@ -261,6 +266,25 @@ void draw_game(void) {
     // Draw the handle bitmap rotated at bottom-left corner
     fb_draw_bitmap_rotated(HANDLE_X, HANDLE_Y, &handle_80x80_bitmap,
                            g_handle_angle, TRANSPARENT_COLOR);
+
+    // === Debug: Draw hitbox outlines ===
+    // 1. Player hitbox (Blue)
+    fb_draw_rect_outline(car_cx, car_cy, CAR_HITBOX_WIDTH, CAR_HITBOX_HEIGHT, DEBUG_COLOR_PLAYER);
+
+    // 2. Obstacle hitboxes (Red)
+    for (int i = 0; i < g_obstacle_count; i++) {
+        if (g_obstacles[i].active) {
+            fb_draw_rect_outline(g_obstacles[i].x, g_obstacles[i].y,
+                                 OBSTACLE_HITBOX_WIDTH, OBSTACLE_HITBOX_HEIGHT, DEBUG_COLOR_OBSTACLE);
+        }
+    }
+
+    // 3. Goal area (Green)
+    if (g_current_map_type == MAP_EASY) {
+        fb_draw_rect_outline(GOAL_X, GOAL_Y, GOAL_TOLERANCE * 2, GOAL_TOLERANCE * 2, DEBUG_COLOR_GOAL);
+    } else {
+        fb_draw_rect_outline(GOAL_HARD_X, GOAL_HARD_Y, GOAL_HARD_WIDTH, GOAL_HARD_HEIGHT, DEBUG_COLOR_GOAL);
+    }
 
     // Send frame buffer to LCD
     fb_flush();

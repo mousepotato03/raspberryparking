@@ -54,6 +54,16 @@ uint16_t fb_get_pixel(uint16_t x, uint16_t y);
 void fb_draw_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
 
 /**
+ * @brief Draw a rectangle outline (border only) to the frame buffer
+ * @param cx X coordinate of center
+ * @param cy Y coordinate of center
+ * @param w Width of rectangle
+ * @param h Height of rectangle
+ * @param color RGB565 color value
+ */
+void fb_draw_rect_outline(int16_t cx, int16_t cy, int16_t w, int16_t h, uint16_t color);
+
+/**
  * @brief Draw a bitmap to the frame buffer
  *
  * Copies bitmap pixel data into the frame buffer at the specified position.

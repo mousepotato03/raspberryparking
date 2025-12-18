@@ -65,6 +65,38 @@ void fb_draw_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color
     }
 }
 
+void fb_draw_rect_outline(int16_t cx, int16_t cy, int16_t w, int16_t h, uint16_t color) {
+    // Calculate corners from center
+    int16_t x1 = cx - w / 2;
+    int16_t y1 = cy - h / 2;
+    int16_t x2 = cx + w / 2;
+    int16_t y2 = cy + h / 2;
+
+    // Draw horizontal lines (top and bottom)
+    for (int16_t x = x1; x <= x2; x++) {
+        if (x >= 0 && x < ST7789_WIDTH) {
+            if (y1 >= 0 && y1 < ST7789_HEIGHT) {
+                framebuffer[y1][x] = color;
+            }
+            if (y2 >= 0 && y2 < ST7789_HEIGHT) {
+                framebuffer[y2][x] = color;
+            }
+        }
+    }
+
+    // Draw vertical lines (left and right)
+    for (int16_t y = y1; y <= y2; y++) {
+        if (y >= 0 && y < ST7789_HEIGHT) {
+            if (x1 >= 0 && x1 < ST7789_WIDTH) {
+                framebuffer[y][x1] = color;
+            }
+            if (x2 >= 0 && x2 < ST7789_WIDTH) {
+                framebuffer[y][x2] = color;
+            }
+        }
+    }
+}
+
 void fb_draw_bitmap(uint16_t x, uint16_t y, const bitmap* bmp) {
     if (bmp == NULL || bmp->bitmap == NULL) {
         return;
