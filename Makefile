@@ -26,7 +26,8 @@ SOURCES = $(SRC_DIR)/main.c \
           $(ASSETS_DIR)/intro.c \
           $(ASSETS_DIR)/hard_map.c \
           $(ASSETS_DIR)/obstacle.c \
-          $(ASSETS_DIR)/game_over.c
+          $(ASSETS_DIR)/game_over.c \
+          $(ASSETS_DIR)/complete.c
 
 # Object files
 OBJECTS = $(SOURCES:%.c=$(BUILD_DIR)/%.o)

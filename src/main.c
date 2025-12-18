@@ -15,6 +15,7 @@
 #include "../assets/hard_map.h"
 #include "../assets/obstacle.h"
 #include "../assets/game_over.h"
+#include "../assets/complete.h"
 
 // Global flag for graceful shutdown
 static volatile int g_running = 1;
@@ -414,9 +415,10 @@ void run_interactive_demo(void) {
                     g_game_state = GAME_STATE_PLAYING;
                     draw_game();
                 } else {
-                    // Hard map clear: show success and return to intro
+                    // Hard map clear: show complete screen and return to intro
                     printf("SUCCESS! Returning to intro in 5 seconds...\n");
-                    show_game_over_screen();  // game_over 이미지 재활용
+                    fb_draw_bitmap(0, 0, &complete_240x240_bitmap);
+                    fb_flush();
                     bcm2835_delay(GOAL_SUCCESS_DELAY);
 
                     g_game_state = GAME_STATE_INTRO;
