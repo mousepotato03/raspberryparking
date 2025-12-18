@@ -35,8 +35,8 @@ static const bitmap* g_current_map_bitmap = NULL;
 #define CAR_HEIGHT 100
 
 // Car hitbox size (actual car bounds within bitmap)
-#define CAR_HITBOX_WIDTH  30
-#define CAR_HITBOX_HEIGHT 30  // 55 -> 45: 상하 경계 충돌 마진 확보
+#define CAR_HITBOX_WIDTH  25
+#define CAR_HITBOX_HEIGHT 45  // 55 -> 45: 상하 경계 충돌 마진 확보
 
 // Handle bitmap size and position constants
 #define HANDLE_WIDTH  80
@@ -53,10 +53,10 @@ static const bitmap* g_current_map_bitmap = NULL;
 #define DEBUG_COLOR_GOAL     0x07E0  // Green
 
 // Obstacle constants
-#define OBSTACLE_WIDTH  50
-#define OBSTACLE_HEIGHT 50
-#define OBSTACLE_HITBOX_WIDTH  25
-#define OBSTACLE_HITBOX_HEIGHT 40
+#define OBSTACLE_WIDTH  75
+#define OBSTACLE_HEIGHT 75
+#define OBSTACLE_HITBOX_WIDTH  35
+#define OBSTACLE_HITBOX_HEIGHT 55
 #define MAX_OBSTACLES 8
 
 // Goal constants (Easy map)
@@ -76,8 +76,8 @@ static const bitmap* g_current_map_bitmap = NULL;
 // Hard map goal position (red border - right top)
 #define GOAL_HARD_X 200
 #define GOAL_HARD_Y 30
-#define GOAL_HARD_WIDTH 55
-#define GOAL_HARD_HEIGHT 40
+#define GOAL_HARD_WIDTH 20
+#define GOAL_HARD_HEIGHT 20
 
 // Game state enum
 typedef enum {
@@ -159,22 +159,36 @@ bool check_obstacle_collision(void) {
     return false;
 }
 
-// Check if car reached the goal
+// Check if car reached the goal (player must fully cover the goal area)
 bool check_goal_reached(void) {
     int16_t car_x = car_get_screen_x(&g_car);
     int16_t car_y = car_get_screen_y(&g_car);
 
+    // Player hitbox bounds (AABB)
+    int16_t player_half_w = CAR_HITBOX_WIDTH / 2;
+    int16_t player_half_h = CAR_HITBOX_HEIGHT / 2;
+    int16_t player_left = car_x - player_half_w;
+    int16_t player_right = car_x + player_half_w;
+    int16_t player_top = car_y - player_half_h;
+    int16_t player_bottom = car_y + player_half_h;
+
+    // Goal area bounds
+    int16_t goal_left, goal_right, goal_top, goal_bottom;
     if (g_current_map_type == MAP_EASY) {
-        // Easy map: distance-based check
-        int16_t dx = car_x - GOAL_X;
-        int16_t dy = car_y - GOAL_Y;
-        return (dx * dx + dy * dy) <= (GOAL_TOLERANCE * GOAL_TOLERANCE);
+        goal_left = GOAL_X - GOAL_TOLERANCE;
+        goal_right = GOAL_X + GOAL_TOLERANCE;
+        goal_top = GOAL_Y - GOAL_TOLERANCE;
+        goal_bottom = GOAL_Y + GOAL_TOLERANCE;
     } else {
-        // Hard map: AABB collision with goal area
-        return check_collision_aabb(car_x, car_y, CAR_HITBOX_WIDTH, CAR_HITBOX_HEIGHT,
-                                    GOAL_HARD_X, GOAL_HARD_Y,
-                                    GOAL_HARD_WIDTH, GOAL_HARD_HEIGHT);
+        goal_left = GOAL_HARD_X - GOAL_HARD_WIDTH / 2;
+        goal_right = GOAL_HARD_X + GOAL_HARD_WIDTH / 2;
+        goal_top = GOAL_HARD_Y - GOAL_HARD_HEIGHT / 2;
+        goal_bottom = GOAL_HARD_Y + GOAL_HARD_HEIGHT / 2;
     }
+
+    // Check if player fully contains the goal area
+    return (player_left <= goal_left && player_right >= goal_right &&
+            player_top <= goal_top && player_bottom >= goal_bottom);
 }
 
 // Show game over screen
@@ -269,7 +283,7 @@ void draw_game(void) {
     for (int i = 0; i < g_obstacle_count; i++) {
         if (g_obstacles[i].active) {
             fb_draw_bitmap_rotated(g_obstacles[i].x, g_obstacles[i].y,
-                                   &obstacle_50x50_bitmap, 0, TRANSPARENT_COLOR);
+                                   &obstacle_75x75_bitmap, 0, TRANSPARENT_COLOR);
         }
     }
 
