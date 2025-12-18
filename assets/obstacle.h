@@ -3,4 +3,4 @@
 
 #include "images.h"
 
-extern const bitmap obstacle_100x100_bitmap;
+extern const bitmap obstacle_50x50_bitmap;

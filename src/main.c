@@ -46,18 +46,38 @@ static const bitmap* g_current_map_bitmap = NULL;
 #define TRANSPARENT_COLOR 0x0000
 
 // Obstacle constants
-#define OBSTACLE_WIDTH  100
-#define OBSTACLE_HEIGHT 100
-#define OBSTACLE_HITBOX_WIDTH  30
-#define OBSTACLE_HITBOX_HEIGHT 30
-#define OBSTACLE_EASY_X 180
-#define OBSTACLE_EASY_Y 60
+#define OBSTACLE_WIDTH  50
+#define OBSTACLE_HEIGHT 50
+#define OBSTACLE_HITBOX_WIDTH  25
+#define OBSTACLE_HITBOX_HEIGHT 40
+#define MAX_OBSTACLES 8
+
+// Goal constants (Easy map)
+#define GOAL_X 25
+#define GOAL_Y 55
+#define GOAL_TOLERANCE 10  // 골인 허용 오차 (px)
+#define GOAL_SUCCESS_DELAY 5000  // 5초 (ms)
+
+// Start position (Easy map - blue border)
+#define START_EASY_X 205
+#define START_EASY_Y 165
+
+// Hard map start position (blue border - left bottom)
+#define START_HARD_X 35
+#define START_HARD_Y 180
+
+// Hard map goal position (red border - right top)
+#define GOAL_HARD_X 200
+#define GOAL_HARD_Y 30
+#define GOAL_HARD_WIDTH 55
+#define GOAL_HARD_HEIGHT 40
 
 // Game state enum
 typedef enum {
     GAME_STATE_INTRO,
     GAME_STATE_PLAYING,
-    GAME_STATE_GAMEOVER
+    GAME_STATE_GAMEOVER,
+    GAME_STATE_GOAL_SUCCESS
 } game_state_t;
 
 // Obstacle struct
@@ -81,8 +101,9 @@ static game_state_t g_game_state = GAME_STATE_INTRO;
 // Current map type (for obstacle logic)
 static map_type_t g_current_map_type = MAP_EASY;
 
-// Obstacle (easy map only)
-static obstacle_t g_obstacle = {0, 0, false};
+// Obstacles array (easy map)
+static obstacle_t g_obstacles[MAX_OBSTACLES];
+static int g_obstacle_count = 0;
 
 void signal_handler(int sig) {
     (void)sig;
@@ -99,14 +120,37 @@ bool check_collision_aabb(int16_t x1, int16_t y1, int16_t w1, int16_t h1,
             y1 - half_h1 < y2 + half_h2 && y1 + half_h1 > y2 - half_h2);
 }
 
-// Check collision with obstacle
+// Check collision with any obstacle
 bool check_obstacle_collision(void) {
-    if (!g_obstacle.active) return false;
     int16_t car_x = car_get_screen_x(&g_car);
     int16_t car_y = car_get_screen_y(&g_car);
-    return check_collision_aabb(car_x, car_y, CAR_HITBOX_WIDTH, CAR_HITBOX_HEIGHT,
-                                g_obstacle.x, g_obstacle.y,
-                                OBSTACLE_HITBOX_WIDTH, OBSTACLE_HITBOX_HEIGHT);
+    for (int i = 0; i < g_obstacle_count; i++) {
+        if (g_obstacles[i].active &&
+            check_collision_aabb(car_x, car_y, CAR_HITBOX_WIDTH, CAR_HITBOX_HEIGHT,
+                                 g_obstacles[i].x, g_obstacles[i].y,
+                                 OBSTACLE_HITBOX_WIDTH, OBSTACLE_HITBOX_HEIGHT)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Check if car reached the goal
+bool check_goal_reached(void) {
+    int16_t car_x = car_get_screen_x(&g_car);
+    int16_t car_y = car_get_screen_y(&g_car);
+
+    if (g_current_map_type == MAP_EASY) {
+        // Easy map: distance-based check
+        int16_t dx = car_x - GOAL_X;
+        int16_t dy = car_y - GOAL_Y;
+        return (dx * dx + dy * dy) <= (GOAL_TOLERANCE * GOAL_TOLERANCE);
+    } else {
+        // Hard map: AABB collision with goal area
+        return check_collision_aabb(car_x, car_y, CAR_HITBOX_WIDTH, CAR_HITBOX_HEIGHT,
+                                    GOAL_HARD_X, GOAL_HARD_Y,
+                                    GOAL_HARD_WIDTH, GOAL_HARD_HEIGHT);
+    }
 }
 
 // Show game over screen
@@ -130,7 +174,7 @@ bool wait_for_any_key(void) {
 void restart_game(void) {
     bcm2835_delay(200);  // Debounce
     g_game_state = GAME_STATE_INTRO;
-    g_obstacle.active = false;
+    g_obstacle_count = 0;
 }
 
 void show_intro_screen(void) {
@@ -157,16 +201,39 @@ void set_current_map(map_type_t map) {
     g_current_map_type = map;
     if (map == MAP_EASY) {
         g_current_map_bitmap = &easy_map_240x240_bitmap;
-        // Easy map: activate obstacle at top-right
-        g_obstacle.x = OBSTACLE_EASY_X;
-        g_obstacle.y = OBSTACLE_EASY_Y;
-        g_obstacle.active = true;
-        printf("Selected: Easy Map (with obstacle)\n");
+        // Easy map: 8 obstacles
+        // 윗줄 4개 (골인지점 제외): X = 65, 105, 145, 185, Y = 55
+        // 아랫줄 4개 (시작지점 제외): X = 25, 65, 105, 145, Y = 165
+        g_obstacle_count = 8;
+        // 윗줄 장애물
+        g_obstacles[0] = (obstacle_t){65, 55, true};
+        g_obstacles[1] = (obstacle_t){105, 55, true};
+        g_obstacles[2] = (obstacle_t){145, 55, true};
+        g_obstacles[3] = (obstacle_t){185, 55, true};
+        // 아랫줄 장애물
+        g_obstacles[4] = (obstacle_t){25, 165, true};
+        g_obstacles[5] = (obstacle_t){65, 165, true};
+        g_obstacles[6] = (obstacle_t){105, 165, true};
+        g_obstacles[7] = (obstacle_t){145, 165, true};
+        printf("Selected: Easy Map (with 8 obstacles)\n");
     } else {
         g_current_map_bitmap = &hard_map_240x240_bitmap;
-        // Hard map: no obstacle
-        g_obstacle.active = false;
-        printf("Selected: Hard Map (no obstacle)\n");
+        // Hard map: 8 obstacles in parking spaces
+        // 좌상단 세로 주차칸 2개, 상단 중앙 가로 주차칸 2개, 우하단 가로 주차칸 4개
+        // 시작 지점(파란색)과 골인 지점(빨간색)은 제외
+        g_obstacle_count = 8;
+        // 좌상단 세로 주차칸 (2개)
+        g_obstacles[0] = (obstacle_t){30, 40, true};
+        g_obstacles[1] = (obstacle_t){30, 95, true};
+        // 상단 중앙 가로 주차칸 (2개)
+        g_obstacles[2] = (obstacle_t){85, 25, true};
+        g_obstacles[3] = (obstacle_t){85, 65, true};
+        // 우하단 가로 주차칸 (4개)
+        g_obstacles[4] = (obstacle_t){95, 205, true};
+        g_obstacles[5] = (obstacle_t){135, 205, true};
+        g_obstacles[6] = (obstacle_t){175, 205, true};
+        g_obstacles[7] = (obstacle_t){215, 205, true};
+        printf("Selected: Hard Map (with 8 obstacles)\n");
     }
 }
 
@@ -174,10 +241,12 @@ void draw_game(void) {
     // Draw background map (covers entire screen)
     fb_draw_bitmap(0, 0, g_current_map_bitmap);
 
-    // Draw obstacle (if active)
-    if (g_obstacle.active) {
-        fb_draw_bitmap_rotated(g_obstacle.x, g_obstacle.y,
-                               &obstacle_100x100_bitmap, 0, TRANSPARENT_COLOR);
+    // Draw all obstacles
+    for (int i = 0; i < g_obstacle_count; i++) {
+        if (g_obstacles[i].active) {
+            fb_draw_bitmap_rotated(g_obstacles[i].x, g_obstacles[i].y,
+                                   &obstacle_50x50_bitmap, 0, TRANSPARENT_COLOR);
+        }
     }
 
     // Get car screen position (center-based)
@@ -256,6 +325,13 @@ void update_game(void) {
         return;
     }
 
+    // Check goal reached (Easy map only)
+    if (g_game_state == GAME_STATE_PLAYING && check_goal_reached()) {
+        printf("Goal reached!\n");
+        g_game_state = GAME_STATE_GOAL_SUCCESS;
+        return;
+    }
+
     // Draw game
     draw_game();
 }
@@ -283,9 +359,17 @@ void run_interactive_demo(void) {
                 printf("Joystick down: Brake\n");
                 printf("Press Ctrl+C to exit\n\n");
 
-                // Initialize car at bottom-right position, facing up (0 degrees)
-                int16_t start_x = ST7789_WIDTH - CAR_WIDTH / 2 - 10;
-                int16_t start_y = ST7789_HEIGHT - CAR_HEIGHT / 2 - 10;
+                // Initialize car at start position based on map type
+                int16_t start_x, start_y;
+                if (g_current_map_type == MAP_EASY) {
+                    // Easy map: start at blue border (bottom-right)
+                    start_x = START_EASY_X;
+                    start_y = START_EASY_Y;
+                } else {
+                    // Hard map: start at blue border (left-bottom)
+                    start_x = START_HARD_X;
+                    start_y = START_HARD_Y;
+                }
                 car_physics_init(&g_car, start_x, start_y, 0);
                 g_handle_angle = 0;
 
@@ -312,6 +396,34 @@ void run_interactive_demo(void) {
                     restart_game();
                 }
                 break;
+
+            case GAME_STATE_GOAL_SUCCESS: {
+                draw_game();  // Show final position
+
+                if (g_current_map_type == MAP_EASY) {
+                    // Easy map clear: switch to Hard map
+                    printf("Switching to Hard Map in 5 seconds...\n");
+                    bcm2835_delay(GOAL_SUCCESS_DELAY);
+
+                    set_current_map(MAP_HARD);
+
+                    // Initialize car at Hard map start position (blue border)
+                    car_physics_init(&g_car, START_HARD_X, START_HARD_Y, 0);
+                    g_handle_angle = 0;
+
+                    g_game_state = GAME_STATE_PLAYING;
+                    draw_game();
+                } else {
+                    // Hard map clear: show success and return to intro
+                    printf("SUCCESS! Returning to intro in 5 seconds...\n");
+                    show_game_over_screen();  // game_over 이미지 재활용
+                    bcm2835_delay(GOAL_SUCCESS_DELAY);
+
+                    g_game_state = GAME_STATE_INTRO;
+                    g_obstacle_count = 0;
+                }
+                break;
+            }
         }
     }
 }

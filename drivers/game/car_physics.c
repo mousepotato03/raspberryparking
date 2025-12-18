@@ -8,11 +8,11 @@
 
 // 기본 물리 파라미터
 const car_physics_params_t default_car_params = {
-    .max_speed_forward = 768,    // 약 3.0 픽셀/프레임
-    .max_speed_reverse = 384,    // 약 1.5 픽셀/프레임
-    .acceleration_rate = 16,     // 0→최대: 약 48프레임 (0.48초)
+    .max_speed_forward = 850,    // 약 3.3 픽셀/프레임 (768→850, 약 10% 증가)
+    .max_speed_reverse = 425,    // 약 1.7 픽셀/프레임 (384→425, 비례 증가)
+    .acceleration_rate = 16,     // 0→최대: 약 53프레임 (0.53초)
     .brake_deceleration = 48,    // 빠른 정지
-    .friction = 8,               // 자연 감속
+    .friction = 16,              // 자연 감속 (8→16, 버튼 안 누르면 빨리 정지)
     .turn_rate = 3,              // 3도/프레임
     .min_speed_to_turn = 64      // 회전 가능 최소 속도
 };
