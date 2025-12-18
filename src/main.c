@@ -19,6 +19,10 @@ static volatile int g_running = 1;
 #define CAR_WIDTH  100
 #define CAR_HEIGHT 100
 
+// Car hitbox size (actual car bounds within bitmap)
+#define CAR_HITBOX_WIDTH  30
+#define CAR_HITBOX_HEIGHT 55
+
 // Handle bitmap size and position constants
 #define HANDLE_WIDTH  80
 #define HANDLE_HEIGHT 80
@@ -112,8 +116,8 @@ void update_game(void) {
     // Update physics
     car_physics_update(&g_car, &default_car_params);
 
-    // Keep car within screen boundaries
-    car_clamp_to_screen(&g_car, ST7789_WIDTH, ST7789_HEIGHT, CAR_WIDTH, CAR_HEIGHT);
+    // Keep car within screen boundaries (use hitbox size, not bitmap size)
+    car_clamp_to_screen(&g_car, ST7789_WIDTH, ST7789_HEIGHT, CAR_HITBOX_WIDTH, CAR_HITBOX_HEIGHT);
 
     // Draw game
     draw_game();
