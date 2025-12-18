@@ -32,7 +32,7 @@ static const bitmap* g_current_map_bitmap = NULL;
 
 // Car hitbox size (actual car bounds within bitmap)
 #define CAR_HITBOX_WIDTH  30
-#define CAR_HITBOX_HEIGHT 55
+#define CAR_HITBOX_HEIGHT 45  // 55 -> 45: 상하 경계 충돌 마진 확보
 
 // Handle bitmap size and position constants
 #define HANDLE_WIDTH  80
