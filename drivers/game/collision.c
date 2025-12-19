@@ -115,3 +115,11 @@ bool check_collision_obb_aabb(const obb_t* obb, const aabb_t* aabb) {
     // All axes overlap -> collision
     return true;
 }
+
+bool check_collision_aabb(int16_t x1, int16_t y1, int16_t w1, int16_t h1,
+                          int16_t x2, int16_t y2, int16_t w2, int16_t h2) {
+    int16_t half_w1 = w1 / 2, half_h1 = h1 / 2;
+    int16_t half_w2 = w2 / 2, half_h2 = h2 / 2;
+    return (x1 - half_w1 < x2 + half_w2 && x1 + half_w1 > x2 - half_w2 &&
+            y1 - half_h1 < y2 + half_h2 && y1 + half_h1 > y2 - half_h2);
+}

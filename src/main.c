@@ -25,13 +25,9 @@ static volatile int g_running = 1;
 // Current map config pointer
 static const map_config_t* g_current_map = NULL;
 
-// Car bitmap size constants
-#define CAR_WIDTH  100
-#define CAR_HEIGHT 100
-
 // Car hitbox size (actual car bounds within bitmap)
 #define CAR_HITBOX_WIDTH  25
-#define CAR_HITBOX_HEIGHT 45  // 55 -> 45: 상하 경계 충돌 마진 확보
+#define CAR_HITBOX_HEIGHT 45 
 
 // Handle bitmap size and position constants
 #define HANDLE_WIDTH  80
@@ -47,9 +43,7 @@ static const map_config_t* g_current_map = NULL;
 #define DEBUG_COLOR_OBSTACLE 0xF800  // Red
 #define DEBUG_COLOR_GOAL     0x07E0  // Green
 
-// Obstacle constants
-#define OBSTACLE_WIDTH  75
-#define OBSTACLE_HEIGHT 75
+// Obstacle hitbox constants
 #define OBSTACLE_HITBOX_WIDTH  35
 #define OBSTACLE_HITBOX_HEIGHT 55
 
@@ -85,15 +79,6 @@ void signal_handler(int sig) {
     (void)sig;
     g_running = 0;
     printf("\nShutdown signal received...\n");
-}
-
-// AABB collision detection
-bool check_collision_aabb(int16_t x1, int16_t y1, int16_t w1, int16_t h1,
-                          int16_t x2, int16_t y2, int16_t w2, int16_t h2) {
-    int16_t half_w1 = w1 / 2, half_h1 = h1 / 2;
-    int16_t half_w2 = w2 / 2, half_h2 = h2 / 2;
-    return (x1 - half_w1 < x2 + half_w2 && x1 + half_w1 > x2 - half_w2 &&
-            y1 - half_h1 < y2 + half_h2 && y1 + half_h1 > y2 - half_h2);
 }
 
 // Check collision with any obstacle (OBB vs AABB)
@@ -140,25 +125,24 @@ bool check_obstacle_collision(void) {
 bool check_goal_reached(void) {
     if (!g_current_map) return false;
 
-    int16_t car_x = car_get_screen_x(&g_car);
-    int16_t car_y = car_get_screen_y(&g_car);
+    aabb_t player = {
+        .cx = car_get_screen_x(&g_car),
+        .cy = car_get_screen_y(&g_car),
+        .half_w = CAR_HITBOX_WIDTH / 2,
+        .half_h = CAR_HITBOX_HEIGHT / 2
+    };
 
-    int16_t player_half_w = CAR_HITBOX_WIDTH / 2;
-    int16_t player_half_h = CAR_HITBOX_HEIGHT / 2;
-    int16_t player_left = car_x - player_half_w;
-    int16_t player_right = car_x + player_half_w;
-    int16_t player_top = car_y - player_half_h;
-    int16_t player_bottom = car_y + player_half_h;
+    aabb_t goal = {
+        .cx = g_current_map->goal_x,
+        .cy = g_current_map->goal_y,
+        .half_w = g_current_map->goal_width / 2,
+        .half_h = g_current_map->goal_height / 2
+    };
 
-    int16_t goal_half_w = g_current_map->goal_width / 2;
-    int16_t goal_half_h = g_current_map->goal_height / 2;
-    int16_t goal_left = g_current_map->goal_x - goal_half_w;
-    int16_t goal_right = g_current_map->goal_x + goal_half_w;
-    int16_t goal_top = g_current_map->goal_y - goal_half_h;
-    int16_t goal_bottom = g_current_map->goal_y + goal_half_h;
-
-    return (player_left <= goal_left && player_right >= goal_right &&
-            player_top <= goal_top && player_bottom >= goal_bottom);
+    return (player.cx - player.half_w <= goal.cx - goal.half_w &&
+            player.cx + player.half_w >= goal.cx + goal.half_w &&
+            player.cy - player.half_h <= goal.cy - goal.half_h &&
+            player.cy + player.half_h >= goal.cy + goal.half_h);
 }
 
 // Show game over screen

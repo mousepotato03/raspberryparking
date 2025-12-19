@@ -56,4 +56,15 @@ void obb_get_vertices(const obb_t* obb, vec2_fp_t vertices[4]);
  */
 bool check_collision_obb_aabb(const obb_t* obb, const aabb_t* aabb);
 
+/**
+ * @brief Check AABB collision between two rectangles (center-based)
+ * @param x1, y1 Center of first rectangle
+ * @param w1, h1 Width and height of first rectangle
+ * @param x2, y2 Center of second rectangle
+ * @param w2, h2 Width and height of second rectangle
+ * @return true if collision detected
+ */
+bool check_collision_aabb(int16_t x1, int16_t y1, int16_t w1, int16_t h1,
+                          int16_t x2, int16_t y2, int16_t w2, int16_t h2);
+
 #endif // COLLISION_H
